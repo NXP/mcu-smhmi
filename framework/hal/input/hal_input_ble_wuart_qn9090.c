@@ -341,7 +341,7 @@ static void crc32(const void *data, size_t numBytes, uint32_t *crc)
     }
 }
 
-static void PRINTF_HEX(uint8_t *data, int len)
+static void LOGD_HEX(uint8_t *data, int len)
 {
     for (int i = 0; i < len; i++)
     {
@@ -846,7 +846,7 @@ static void SLN_BLEWUARTMsgHandle(void *param)
                 {
                     LPUART_RTOS_Receive(&s_LpuartRTOSHandle, transfer->nibbleBuf, BLE_WUART_HEADER_LENGTH, &n);
                     LOGD("HEADER PACKET PARSE FAILED[%d].", transfer->packetLen);
-                    PRINTF_HEX(transfer->nibbleBuf, BLE_WUART_HEADER_LENGTH);
+                    LOGD_HEX(transfer->nibbleBuf, BLE_WUART_HEADER_LENGTH);
                 }
             }
             break;
@@ -863,7 +863,7 @@ static void SLN_BLEWUARTMsgHandle(void *param)
                 else
                 {
                     LOGD("DATA PACKET PARSE FAILED[%d].", transfer->packetLen);
-                    PRINTF_HEX(transfer->packetBuf, s_HeaderTransferUnit.pktLen);
+                    LOGD_HEX(transfer->packetBuf, s_HeaderTransferUnit.pktLen);
                 }
 
                 vPortFree(transfer->packetBuf);

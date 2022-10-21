@@ -1,0 +1,6 @@
+script.jlink
+*.launch
+.settings
+Debug
+/Release/
+/Single Core/

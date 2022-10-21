@@ -34,7 +34,8 @@
 #include "hal_event_descriptor_common.h"
 #include "hal_event_descriptor_voice.h"
 #include "hal_output_dev.h"
-//#include "hal_smart_lock_config.h"
+
+#include "app_config.h"
 
 /*******************************************************************************
  * Definitions
@@ -47,18 +48,22 @@
 #define MQS_SAI_TX_SOURCE  kDmaRequestMuxSai3Tx
 
 #define MQS_SAI_DMA_IRQ_PRIO (configMAX_SYSCALL_INTERRUPT_PRIORITY - 1)
-/* MQS_AUDIO_SLOT_SIZE = 9600 => 100ms at 48KHz
- * MQS_AUDIO_SLOT_CNT should be 2 or more in order to be able to play audio without pauses */
-#define MQS_AUDIO_SLOT_SIZE (9600)
-#define MQS_AUDIO_SLOT_CNT  (2)
-#define MQS_AUDIO_SLOT_MS   (MQS_AUDIO_SLOT_SIZE / (2 * 48))
+/* MQS_AUDIO_CHUNK_SIZE = 1600 * 2 * 2 => 100ms at 16kHz/16bit/stereo */
+#define MQS_AUDIO_CHUNK_SIZE (1600 * 2 * 2)
+/* MQS_AUDIO_CHUNK_CNT should be 2 or more in order to be able to play audio without pauses */
+#define MQS_AUDIO_CHUNK_CNT (2)
+/* Local audio prompts are mono/16kHz/16bit */
+#define PROMPTS_AUDIO_CHUNK_SIZE_1MS (16 * 2)
+/* PROMPTS_AUDIO_CHUNK_SIZE = 1600 * 2 => 100ms at 16KHz/16bit/mono */
+#define PROMPTS_AUDIO_CHUNK_MS   100
+#define PROMPTS_AUDIO_CHUNK_SIZE (PROMPTS_AUDIO_CHUNK_MS * PROMPTS_AUDIO_CHUNK_SIZE_1MS)
 
 #if !AMP_LOOPBACK_DISABLED
-/* MQS_FEEDBACK_SLOT_SIZE should be (MQS_AUDIO_SLOT_SIZE / 3) because MQS is 48KHz and Mics are 16KHz
- * MQS_FEEDBACK_SLOT_CNT should be (MQS_AUDIO_SLOT_CNT + 1) in order to give AFE time to process all chunks without
+/* MQS_FEEDBACK_CHUNK_SIZE should be PROMPTS_AUDIO_CHUNK_SIZE because prompt audio and Mics are 16KHz
+ * MQS_FEEDBACK_CHUNK_CNT should be (MQS_AUDIO_CHUNK_CNT + 1) in order to give AFE time to process all chunks without
  * overlapping */
-#define MQS_FEEDBACK_SLOT_SIZE (MQS_AUDIO_SLOT_SIZE / 3)
-#define MQS_FEEDBACK_SLOT_CNT  (MQS_AUDIO_SLOT_CNT + 1)
+#define MQS_FEEDBACK_CHUNK_SIZE (PROMPTS_AUDIO_CHUNK_SIZE)
+#define MQS_FEEDBACK_CHUNK_CNT  (MQS_AUDIO_CHUNK_CNT + 1)
 #endif /* !AMP_LOOPBACK_DISABLED */
 
 #if defined(__cplusplus)
@@ -68,7 +73,8 @@ void BOARD_InitMqsResource(void);
 int HAL_OutputDev_MqsAudio_Register();
 static hal_output_status_t HAL_OutputDev_MqsAudio_Init(output_dev_t *dev, output_dev_callback_t callback);
 static hal_output_status_t HAL_OutputDev_MqsAudio_Start(const output_dev_t *dev);
-static void _PlaySound(const uint8_t *buffer, int32_t size);
+static void _PlaySound(int PromptId, const uint8_t *buffer, int32_t size, uint8_t asrEnabled);
+static void _StopPlayingSound(void);
 static status_t _GetVolume(char *valueToString);
 #if defined(__cplusplus)
 }
@@ -79,10 +85,16 @@ static status_t _GetVolume(char *valueToString);
  ******************************************************************************/
 
 static volatile SemaphoreHandle_t s_MqsSemFreeSlots = NULL;
-static AT_NONCACHEABLE_SECTION_ALIGN_OCRAM(uint8_t s_MqsStreamPool[MQS_AUDIO_SLOT_CNT][MQS_AUDIO_SLOT_SIZE], 4);
+static AT_NONCACHEABLE_SECTION_ALIGN_OCRAM(uint8_t s_MqsStreamPool[MQS_AUDIO_CHUNK_CNT][MQS_AUDIO_CHUNK_SIZE], 4);
 #if !AMP_LOOPBACK_DISABLED
-static AT_NONCACHEABLE_SECTION_ALIGN_OCRAM(uint8_t s_MqsAfeFeedback[MQS_FEEDBACK_SLOT_CNT][MQS_FEEDBACK_SLOT_SIZE], 4);
+static AT_NONCACHEABLE_SECTION_ALIGN_OCRAM(uint8_t s_MqsAfeFeedback[MQS_FEEDBACK_CHUNK_CNT][MQS_FEEDBACK_CHUNK_SIZE],
+                                           4);
 #endif /* !AMP_LOOPBACK_DISABLED */
+
+/* Used to notify AFE (and ASR) that speaker is streaming.
+ * AFE will decide which is the right course of actions.
+ * Current approach will disable ASR during MQS playback (barge-in disabled). */
+volatile bool g_MQSPlaying = false;
 
 static AT_NONCACHEABLE_SECTION_ALIGN(sai_edma_handle_t s_SaiTxHandle, 4);
 static AT_NONCACHEABLE_SECTION_ALIGN(edma_handle_t s_SaiDmaHandle, 4);
@@ -110,7 +122,7 @@ static mqs_task_t s_MqsAudioTask;
 
 #define MQS_TASK_NAME     "mqs_audio"
 #define MQS_TASK_STACK    1024
-#define MQS_TASK_PRIORITY 3
+#define MQS_TASK_PRIORITY 2
 #if FWK_SUPPORT_STATIC_ALLOCATION
 FWKDATA static StackType_t s_MqsAudioTaskStack[MQS_TASK_STACK];
 FWKDATA static StaticTask_t s_MqsAudioTaskTcb;
@@ -120,10 +132,15 @@ static void *s_MqsAudioTaskStack        = NULL;
 static void *s_MqsAudioTaskTcbReference = NULL;
 #endif
 
+static asr_language_t s_Language = ASR_ENGLISH;
+static bool s_IsStopPlayingSound = false;
+
 typedef struct
 {
+    int32_t promptId;
     const uint8_t *buffer;
     int32_t size;
+    uint8_t asrEnabled;
 } sound_info_t;
 
 const static output_dev_operator_t s_OutputDev_MqsAudioOps = {
@@ -148,7 +165,7 @@ static output_dev_t s_OutputDev_MqsAudio = {
     .cap.callback = NULL,
 };
 
-static void _postSoundPlayRequest(const uint8_t *buffer, int32_t size)
+static void _postSoundPlayRequest(int32_t promptId, const uint8_t *buffer, int32_t size, uint8_t asrEnabled)
 {
     fwk_message_t *pMsg = (fwk_message_t *)FWK_MALLOC(sizeof(fwk_message_t));
 
@@ -160,10 +177,12 @@ static void _postSoundPlayRequest(const uint8_t *buffer, int32_t size)
         sound_info_t *pSoundInfo = FWK_MALLOC(sizeof(sound_info_t));
         if (pSoundInfo != NULL)
         {
-            pSoundInfo->buffer          = buffer;
-            pSoundInfo->size            = size;
-            pMsg->raw.data              = pSoundInfo;
-            pMsg->raw.freeAfterConsumed = 1;
+            pSoundInfo->promptId            = promptId;
+            pSoundInfo->buffer              = buffer;
+            pSoundInfo->size                = size;
+            pSoundInfo->asrEnabled          = asrEnabled;
+            pMsg->payload.data              = pSoundInfo;
+            pMsg->payload.freeAfterConsumed = 1;
             FWK_Message_Put(MQS_AUDIO_TASK_ID, &pMsg);
         }
         else
@@ -181,24 +200,26 @@ static void _postSoundPlayRequest(const uint8_t *buffer, int32_t size)
 static void HAL_OutputDev_MqsAudio_MsgHandle(fwk_message_t *pMsg, fwk_task_data_t *pTaskData)
 {
     LOGI("HAL_OutputDev_MqsAudio_MsgHandle\r");
-    if ((pMsg == NULL) || (pTaskData == NULL) || (pMsg->id != kFWKMessageID_Raw) || (pMsg->raw.data == NULL))
+    if ((pMsg == NULL) || (pTaskData == NULL) || (pMsg->id != kFWKMessageID_Raw) || (pMsg->payload.data == NULL))
     {
         return;
     }
 
-    sound_info_t *pSoundInfo = (sound_info_t *)pMsg->raw.data;
-    _PlaySound(pSoundInfo->buffer, pSoundInfo->size);
+    sound_info_t *pSoundInfo = (sound_info_t *)pMsg->payload.data;
+    int32_t currentPromptId  = pSoundInfo->promptId;
+    _PlaySound(currentPromptId, pSoundInfo->buffer, pSoundInfo->size, pSoundInfo->asrEnabled);
 
-    if (pMsg->raw.freeAfterConsumed)
+    if (pMsg->payload.freeAfterConsumed)
     {
-        FWK_FREE(pMsg->raw.data);
-        pMsg->raw.data = NULL;
+        pMsg->payload.freeAfterConsumed = 0;
+        FWK_FREE(pMsg->payload.data);
+        pMsg->payload.data = NULL;
     }
 }
 
-#define MQS_SOUND_PLAY_FUNC(buffer, size) _postSoundPlayRequest((buffer), (size))
+#define MQS_SOUND_PLAY_FUNC(promptId, buffer, size, asrEnabled) _postSoundPlayRequest((promptId), (buffer), (size), (asrEnabled))
 #else
-#define MQS_SOUND_PLAY_FUNC(buffer, size) _PlaySound((buffer), (size))
+#define MQS_SOUND_PLAY_FUNC(promptId, buffer, size, asrEnabled) _PlaySound((promptId), (buffer), (size), (asrEnabled))
 #endif
 
 /*******************************************************************************
@@ -213,10 +234,8 @@ __attribute__((weak)) int APP_OutputDev_MqsAudio_InferCompleteDecode(output_algo
     return 0;
 }
 
-__attribute__((weak)) int APP_OutputDev_MqsAudio_InputNotifyDecode(const output_dev_t *dev,
-                                                                   void *inputData,
-                                                                   void **audio,
-                                                                   uint32_t *len)
+__attribute__((weak)) int APP_OutputDev_MqsAudio_InputNotifyDecode(
+    const output_dev_t *dev, void *inputData, void **audio, uint32_t *len, asr_language_t language)
 {
     return 0;
 }
@@ -236,15 +255,12 @@ static void _ConfigMqs(void)
 {
     CLOCK_EnableClock(kCLOCK_Mqs); /* Enable MQS hmclk. */
 
-    IOMUXC_MQSEnterSoftwareReset(IOMUXC_GPR, true);  /* Reset MQS. */
-    IOMUXC_MQSEnterSoftwareReset(IOMUXC_GPR, false); /* Release reset MQS. */
-    IOMUXC_MQSEnable(IOMUXC_GPR, true);              /* Enable MQS. */
-    //    IOMUXC_MQSConfig(IOMUXC_GPR, kIOMUXC_MqsPwmOverSampleRate64, 0u);           /* 78.6432MHz/64/(0+1) = 1.2288MHz
-    //                                                                                 Higher frequency PWM involves
-    //                                                                                 less low frequency harmonic.*/
-    IOMUXC_MQSConfig(IOMUXC_GPR, kIOMUXC_MqsPwmOverSampleRate32,
-                     0u); /* 78.6432MHz/32/(0+1) = 2.4576MHz
-                             Higher frequency PWM involves less low frequency harmonic.*/
+    IOMUXC_MQSEnterSoftwareReset(IOMUXC_GPR, true);                   /* Reset MQS. */
+    IOMUXC_MQSEnterSoftwareReset(IOMUXC_GPR, false);                  /* Release reset MQS. */
+    IOMUXC_MQSEnable(IOMUXC_GPR, true);                               /* Enable MQS. */
+    IOMUXC_MQSConfig(IOMUXC_GPR, kIOMUXC_MqsPwmOverSampleRate64, 1u); /* 65.54MHz/64/16/2 = 16000Hz
+                                                                        Higher frequency PWM involves
+                                                                        less low frequency harmonic.*/
 }
 
 /*!
@@ -274,112 +290,68 @@ static float _AdaptVolume(uint32_t volume)
     return (-0.0018 * pow(volume, 3) + 0.028 * pow(volume, 2));
 }
 
-static void _VolDiffControl(void *data, uint32_t len)
+/*!
+ * Expand audio mono to stereo in difference. And adjust the volume simultaneously.
+ *
+ */
+static void _AdjustVolumeMonoToStereo(int16_t *src_mono, int16_t *dst_stereo, uint32_t sample_cnt)
 {
     uint32_t i;
-    int16_t *data16 = (int16_t *)data;
-    float volume    = _AdaptVolume(s_OutputDev_MqsAudio.configs[kMQSConfigs_Volume].value);
-    uint32_t len16  = len / sizeof(int16_t);
+    float volume;
 
-    for (i = 0; i < len16 - 1; i += 2)
+    /* The volume is decreased by multiplying the samples with values between 0 and 1 */
+    volume = _AdaptVolume(s_OutputDev_MqsAudio.configs[kMQSConfigs_Volume].value);
+
+    for (i = 0; i < sample_cnt; i++)
     {
-        // the volume is decreased by multiplying the samples with values between 0 and 1
-        data16[i]     = (int16_t)(data16[i] * volume);
-        data16[i + 1] = -data16[i];
+        *dst_stereo       = (*src_mono) * volume;
+        *(dst_stereo + 1) = -(*dst_stereo);
+
+        dst_stereo += 2;
+        src_mono++;
     }
 }
 
 #if !AMP_LOOPBACK_DISABLED
-/* TODO: Move downsampling stuff to dedicated folder!!! */
-#define F3_NUM_TAPS 31U
-static int16_t dsBuffer[32];
-static const int16_t kDefaultF3Coeffs[F3_NUM_TAPS] = {
-    0,    57,   83, 0,     190,   -279, 0,   554, 757, 0,    -1388, -1910, 0,  4327, 8922, 10898,
-    8922, 4327, 0,  -1910, -1388, 0,    757, 554, 0,   -279, -190,  0,     83, 57,   0,
-};
-
-static inline int32_t mult_acc(int16_t coeff, int16_t op1, int16_t op2, int32_t acc)
+static void _AdjustVolumeMonoToMono(int16_t *src_mono, int16_t *dst_mono, uint32_t sample_cnt)
 {
-    acc += ((int32_t)coeff * (int32_t)op1);
-    acc += ((int32_t)coeff * (int32_t)op2);
+    uint32_t i;
+    float volume;
 
-    return acc;
-}
+    volume = _AdaptVolume(s_OutputDev_MqsAudio.configs[kMQSConfigs_Volume].value);
 
-static int16_t fir_lp_one_sixth(const int16_t *coeffs, int16_t *buffer, int16_t data)
-{
-    int32_t acc = 0;
-
-    /* Pull new data into buffer */
-    buffer[0] = data;
-
-    /* Unrolled loop, skipping zero coefficients, leveraging dual multiply accumulates */
-    acc = mult_acc(coeffs[1], buffer[1], buffer[29], acc);
-    acc = mult_acc(coeffs[2], buffer[2], buffer[28], acc);
-
-    acc = mult_acc(coeffs[4], buffer[4], buffer[26], acc);
-    acc = mult_acc(coeffs[5], buffer[5], buffer[25], acc);
-
-    acc = mult_acc(coeffs[7], buffer[7], buffer[23], acc);
-    acc = mult_acc(coeffs[8], buffer[8], buffer[22], acc);
-
-    acc = mult_acc(coeffs[10], buffer[10], buffer[20], acc);
-    acc = mult_acc(coeffs[11], buffer[11], buffer[19], acc);
-
-    acc = mult_acc(coeffs[13], buffer[13], buffer[17], acc);
-    acc = mult_acc(coeffs[14], buffer[14], buffer[16], acc);
-
-    acc = mult_acc(coeffs[15], buffer[15], 0, acc);
-
-    /* Shift values up in buffer */
-    for (uint32_t idx = F3_NUM_TAPS; idx > 0; idx--)
+    for (i = 0; i < sample_cnt; i++)
     {
-        buffer[idx] = buffer[idx - 1];
-    }
+        /* The volume is decreased by multiplying the samples with values between 0 and 1 */
+        *dst_mono = (*src_mono) * volume;
 
-    /* Return quantized accumulator  */
-    return (int16_t)(acc >> 15);
-}
-
-void SLN_DSP_downsample_by_3(int16_t *in, uint32_t inSampleCount, int16_t *out)
-{
-    int16_t *pOut   = out;
-    int16_t filt    = 0;
-    uint8_t counter = 0;
-
-    for (uint32_t idx = 0; idx < inSampleCount; idx++)
-    {
-        filt = fir_lp_one_sixth(kDefaultF3Coeffs, dsBuffer, in[idx]);
-
-        /* Down sample 3-1 */
-        if (2 == counter++)
-        {
-            *pOut = filt;
-            pOut++;
-            counter = 0;
-        }
+        dst_mono++;
+        src_mono++;
     }
 }
 
-void _SpeakerToAfeNotify(int16_t *buffer, uint32_t length)
+static void _SpeakerToAfeNotify(int16_t *buffer, uint32_t length)
 {
     event_voice_t feedbackEvent = {0};
+    output_event_t output_event = {0};
 
     if (s_OutputDev_MqsAudio.cap.callback != NULL)
     {
+        output_event.eventId   = kOutputEvent_SpeakerToAfeFeedback;
+        output_event.data      = &feedbackEvent;
+        output_event.copy      = 1;
+        output_event.size      = sizeof(feedbackEvent);
+        output_event.eventInfo = kEventInfo_Local;
+
         feedbackEvent.event_base.eventId         = SPEAKER_TO_AFE_FEEDBACK;
         feedbackEvent.speaker_audio.start_time   = FWK_CurrentTimeUs();
         feedbackEvent.speaker_audio.audio_stream = buffer;
         feedbackEvent.speaker_audio.audio_length = length;
 
-        s_OutputDev_MqsAudio.cap.callback(s_OutputDev_MqsAudio.id, kOutputEvent_SpeakerToAfeFeedback, &feedbackEvent,
-                                          sizeof(event_voice_t), 0);
+        s_OutputDev_MqsAudio.cap.callback(s_OutputDev_MqsAudio.id, output_event, 0);
     }
 }
 #endif /* !AMP_LOOPBACK_DISABLED */
-
-// TODO: workaround for the self-wakeup
-volatile int g_MQSPlaying = 0;
 
 /*!
  * @brief play audio clip
@@ -387,7 +359,7 @@ volatile int g_MQSPlaying = 0;
  * @param buffer pointer to audio clip
  * @param size size of audio buffer
  */
-static void _PlaySound(const uint8_t *buffer, int32_t size)
+static void _PlaySound(int PromptId, const uint8_t *buffer, int32_t size, uint8_t asrEnabled)
 {
     sai_transfer_t xfer         = {0};
     status_t tansferStatus      = kStatus_Success;
@@ -401,54 +373,63 @@ static void _PlaySound(const uint8_t *buffer, int32_t size)
     uint8_t mqsFeedbackPoolSlotIdx = 0;
 #endif /* !AMP_LOOPBACK_DISABLED */
 
-    // TODO: workaround for the self-wakeup
-    g_MQSPlaying = 1;
+#if !AMP_LOOPBACK_DISABLED
+    if (asrEnabled == 0)
+    {
+        g_MQSPlaying = true;
+    }
+#else
+    g_MQSPlaying = true;
+#endif /* AMP_LOOPBACK_DISABLED */
 
     /* Enable output of Audio amplifier */
     GPIO_PinWrite(BOARD_MQS_OE_GPIO_PORT, BOARD_MQS_OE_GPIO_PIN, 1);
+    vTaskDelay(pdMS_TO_TICKS(100));
 
-    audioSize = size - (size % 96);
+    audioSize = size - (size % PROMPTS_AUDIO_CHUNK_SIZE_1MS);
 
-    LOGD("[MQS] Playing Audio of %d samples (%d ms)", audioSize, (audioSize / 96));
+    LOGD("[MQS] Playing Audio of %d samples (%d ms)", audioSize / 2, (audioSize / PROMPTS_AUDIO_CHUNK_SIZE_1MS));
 
     while (audioPlayedSize < audioSize)
     {
-        /* A new slot should be available in one MQS_AUDIO_SLOT_MS.
-         * In case there is no empty slot in two MQS_AUDIO_SLOT_MS, something is wrong. */
-        if (xSemaphoreTake(s_MqsSemFreeSlots, (TickType_t)(2 * MQS_AUDIO_SLOT_MS)) != pdTRUE)
+        if (s_IsStopPlayingSound == true)
         {
-            LOGE("[MQS] Playing Failed, played %d samples (%d ms)", audioPlayedSize, (audioPlayedSize / 96));
+            s_IsStopPlayingSound = false;
+            break;
+        }
+
+        /* A new slot should be available in one PROMPTS_AUDIO_CHUNK_MS.
+         * In case there is no empty slot in two PROMPTS_AUDIO_CHUNK_MS, something is wrong. */
+        if (xSemaphoreTake(s_MqsSemFreeSlots, (TickType_t)(2 * PROMPTS_AUDIO_CHUNK_MS)) != pdTRUE)
+        {
+            LOGE("[MQS] Playing Failed, played %d samples (%d ms)", audioPlayedSize / 2,
+                 (audioPlayedSize / PROMPTS_AUDIO_CHUNK_MS));
             statusOk = false;
             break;
         }
 
-        if ((audioSize - audioPlayedSize) >= MQS_AUDIO_SLOT_SIZE)
+        if ((audioSize - audioPlayedSize) >= PROMPTS_AUDIO_CHUNK_SIZE)
         {
-            audioChunkSize = MQS_AUDIO_SLOT_SIZE;
+            audioChunkSize = PROMPTS_AUDIO_CHUNK_SIZE;
         }
         else
         {
             audioChunkSize = audioSize - audioPlayedSize;
         }
 
-        memcpy(s_MqsStreamPool[mqsAudioPoolSlotIdx], &buffer[audioPlayedSize], audioChunkSize);
-        if (audioChunkSize < MQS_AUDIO_SLOT_SIZE)
-        {
-            memset(&s_MqsStreamPool[mqsAudioPoolSlotIdx][audioChunkSize], 0, MQS_AUDIO_SLOT_SIZE - audioChunkSize);
-            audioChunkSize = MQS_AUDIO_SLOT_SIZE;
-        }
-
-        xfer.data     = s_MqsStreamPool[mqsAudioPoolSlotIdx];
-        xfer.dataSize = audioChunkSize;
-
-        /* Differentiate and adjust volume */
-        _VolDiffControl(xfer.data, xfer.dataSize);
+        _AdjustVolumeMonoToStereo((int16_t *)&buffer[audioPlayedSize], (int16_t *)s_MqsStreamPool[mqsAudioPoolSlotIdx],
+                                  audioChunkSize / 2);
 
 #if !AMP_LOOPBACK_DISABLED
-        /* Downsample audio data (from 48KHz to 16KHz) for AFE */
-        SLN_DSP_downsample_by_3((int16_t *)xfer.data, xfer.dataSize / 2,
-                                (int16_t *)s_MqsAfeFeedback[mqsFeedbackPoolSlotIdx]);
+        if (asrEnabled == 1)
+        {
+            _AdjustVolumeMonoToMono((int16_t *)(&buffer[audioPlayedSize]),
+                                    (int16_t *)(s_MqsAfeFeedback[mqsFeedbackPoolSlotIdx]), audioChunkSize / 2);
+        }
 #endif /* !AMP_LOOPBACK_DISABLED */
+
+        xfer.data     = s_MqsStreamPool[mqsAudioPoolSlotIdx];
+        xfer.dataSize = audioChunkSize << 1; /* Prompts data is expanded into stereo. Data length becomes 2 times */
 
         /* Play this chunk */
         tansferStatus = SAI_TransferSendEDMA(MQS_SAI, &s_SaiTxHandle, &xfer);
@@ -460,22 +441,25 @@ static void _PlaySound(const uint8_t *buffer, int32_t size)
         }
 
 #if !AMP_LOOPBACK_DISABLED
+        if (asrEnabled == 1)
+        {
         /* Notify AFE in order to perform AEC */
-        _SpeakerToAfeNotify((int16_t *)s_MqsAfeFeedback[mqsFeedbackPoolSlotIdx], xfer.dataSize / 6);
-        mqsFeedbackPoolSlotIdx = (mqsFeedbackPoolSlotIdx + 1) % MQS_FEEDBACK_SLOT_CNT;
+            _SpeakerToAfeNotify((int16_t *)s_MqsAfeFeedback[mqsFeedbackPoolSlotIdx], audioChunkSize / 2);
+            mqsFeedbackPoolSlotIdx = (mqsFeedbackPoolSlotIdx + 1) % MQS_FEEDBACK_CHUNK_CNT;
+        }
 #endif /* !AMP_LOOPBACK_DISABLED */
 
-        mqsAudioPoolSlotIdx = (mqsAudioPoolSlotIdx + 1) % MQS_AUDIO_SLOT_CNT;
+        mqsAudioPoolSlotIdx = (mqsAudioPoolSlotIdx + 1) % MQS_AUDIO_CHUNK_CNT;
         audioPlayedSize += audioChunkSize;
     }
 
     if (statusOk)
     {
-        /* s_MqsSemFreeSlots will not be free at least MQS_AUDIO_SLOT_CNT slots
+        /* s_MqsSemFreeSlots will not be free at least MQS_AUDIO_CHUNK_CNT slots
          * Give one extra slot timeout to let AFE process everything. */
-        vTaskDelay(MQS_AUDIO_SLOT_MS * (MQS_AUDIO_SLOT_CNT + 1));
+        vTaskDelay(PROMPTS_AUDIO_CHUNK_MS * (MQS_AUDIO_CHUNK_CNT + 1));
 
-        if (uxSemaphoreGetCount(s_MqsSemFreeSlots) != MQS_AUDIO_SLOT_CNT)
+        if (uxSemaphoreGetCount(s_MqsSemFreeSlots) != MQS_AUDIO_CHUNK_CNT)
         {
             LOGE("[MQS] Playing Failed, not all slots are free %d", uxSemaphoreGetCount(s_MqsSemFreeSlots));
             statusOk = false;
@@ -490,9 +474,9 @@ static void _PlaySound(const uint8_t *buffer, int32_t size)
     {
         SAI_TransferTerminateSendEDMA(MQS_SAI, &s_SaiTxHandle);
 
-        for (uint8_t i = 0; i < MQS_AUDIO_SLOT_CNT; i++)
+        for (uint8_t i = 0; i < MQS_AUDIO_CHUNK_CNT; i++)
         {
-            if (uxSemaphoreGetCount(s_MqsSemFreeSlots) == MQS_AUDIO_SLOT_CNT)
+            if (uxSemaphoreGetCount(s_MqsSemFreeSlots) == MQS_AUDIO_CHUNK_CNT)
             {
                 break;
             }
@@ -506,8 +490,29 @@ static void _PlaySound(const uint8_t *buffer, int32_t size)
 
     /* Disable output of Audio amplifier */
     GPIO_PinWrite(BOARD_MQS_OE_GPIO_PORT, BOARD_MQS_OE_GPIO_PIN, 0);
-    // TODO: workaround for the self-wakeup
-    g_MQSPlaying = 0;
+
+    g_MQSPlaying = false;
+
+    static event_common_t s_PlayPromptDoneEvent;
+    output_event_t output_event = {0};
+
+    output_event.eventId   = kOutputEvent_OutputInputNotify;
+    output_event.data      = &s_PlayPromptDoneEvent;
+    output_event.copy      = 1;
+    output_event.size      = sizeof(s_PlayPromptDoneEvent);
+    output_event.eventInfo = kEventInfo_DualCore;
+
+    s_PlayPromptDoneEvent.eventBase.eventId = kEventID_PlayPromptDone;
+    s_PlayPromptDoneEvent.data              = (void *)PromptId;
+    uint8_t fromISR                         = __get_IPSR();
+
+    s_OutputDev_MqsAudio.cap.callback(s_OutputDev_MqsAudio.id, output_event, fromISR);
+}
+
+static void _StopPlayingSound(void)
+{
+    s_IsStopPlayingSound = true;
+    LOGD("[MQS] MQS stopped");
 }
 
 static hal_output_status_t HAL_OutputDev_MqsAudio_InferComplete(const output_dev_t *dev,
@@ -521,24 +526,27 @@ static hal_output_status_t HAL_OutputDev_MqsAudio_InferComplete(const output_dev
     APP_OutputDev_MqsAudio_InferCompleteDecode(source, inferResult, (void *)&audioBuffer, &audioLen);
     if (audioBuffer != NULL && audioLen != 0)
     {
-        MQS_SOUND_PLAY_FUNC(audioBuffer, audioLen);
+        int promptId       = (int)((event_common_t *)inferResult)->promptInfo.id;
+        uint8_t asrEnabled = ((event_common_t *)inferResult)->promptInfo.asrEnabled;
+        MQS_SOUND_PLAY_FUNC(promptId, audioBuffer, audioLen, asrEnabled);
     }
 
     return error;
 }
 
-static hal_output_status_t HAL_OutputDev_MqsAudio_Input_notify(const output_dev_t *dev, void *data)
+static hal_output_status_t HAL_OutputDev_MqsAudio_InputNotify(const output_dev_t *dev, void *data)
 {
     hal_output_status_t error = kStatus_HAL_OutputSuccess;
     uint8_t *audioBuffer      = NULL;
     uint32_t audioLen         = 0;
     event_base_t eventBase    = *(event_base_t *)data;
 
-    LOGD("MQS:Input Notify Event %d", eventBase.eventId);
+    LOGI("MQS:Input Notify Event %d", eventBase.eventId);
     if (eventBase.eventId == kEventID_GetSpeakerVolume)
     {
         speaker_volume_event_t speaker;
-        speaker.volume = 100 /*HAL_OutputDev_SmartLockConfig_GetSpeakerVolume()*/;
+        speaker.volume =
+            s_OutputDev_MqsAudio.configs[kMQSConfigs_Volume].value /*HAL_OutputDev_SmartLockConfig_GetSpeakerVolume()*/;
         LOGD("Current volume is: %d", speaker.volume);
         if (eventBase.respond != NULL)
         {
@@ -557,6 +565,7 @@ static hal_output_status_t HAL_OutputDev_MqsAudio_Input_notify(const output_dev_
         }
         else
         {
+            LOGD("Volume set. Value is %d", event.speakerVolume.volume);
             s_OutputDev_MqsAudio.configs[kMQSConfigs_Volume].value = event.speakerVolume.volume;
         }
         if (eventBase.respond != NULL)
@@ -564,12 +573,24 @@ static hal_output_status_t HAL_OutputDev_MqsAudio_Input_notify(const output_dev_
             eventBase.respond(kEventID_SetSpeakerVolume, &event.speakerVolume, eventResponseStatus, true);
         }
     }
+    else if (eventBase.eventId == SET_MULTILINGUAL_CONFIG)
+    {
+        event_voice_t *pVoiceEvent = (event_voice_t *)data;
+        s_Language                 = pVoiceEvent->set_multilingual_config.languages;
+        LOGD("[MQS]: Set language %d", s_Language);
+    }
+    else if (eventBase.eventId == kEventID_StopPrompt)
+    {
+        _StopPlayingSound();
+    }
     else
     {
-        APP_OutputDev_MqsAudio_InputNotifyDecode(dev, data, (void *)&audioBuffer, &audioLen);
+        APP_OutputDev_MqsAudio_InputNotifyDecode(dev, data, (void *)&audioBuffer, &audioLen, s_Language);
         if (audioBuffer != NULL && audioLen != 0)
         {
-            MQS_SOUND_PLAY_FUNC(audioBuffer, audioLen);
+            int promptId       = (int)((event_common_t *)data)->promptInfo.id;
+            uint8_t asrEnabled = ((event_common_t *)data)->promptInfo.asrEnabled;
+            MQS_SOUND_PLAY_FUNC(promptId, audioBuffer, audioLen, asrEnabled);
         }
     }
     return error;
@@ -577,7 +598,7 @@ static hal_output_status_t HAL_OutputDev_MqsAudio_Input_notify(const output_dev_
 
 const static output_dev_event_handler_t s_MqsAudioHandler = {
     .inferenceComplete = HAL_OutputDev_MqsAudio_InferComplete,
-    .inputNotify       = HAL_OutputDev_MqsAudio_Input_notify,
+    .inputNotify       = HAL_OutputDev_MqsAudio_InputNotify,
 };
 
 static hal_output_status_t HAL_OutputDev_MqsAudio_Start(const output_dev_t *dev)
@@ -594,7 +615,7 @@ static hal_output_status_t HAL_OutputDev_MqsAudio_Start(const output_dev_t *dev)
     {
         _ConfigMqs();
 
-        s_MqsSemFreeSlots = xSemaphoreCreateCounting(MQS_AUDIO_SLOT_CNT, MQS_AUDIO_SLOT_CNT);
+        s_MqsSemFreeSlots = xSemaphoreCreateCounting(MQS_AUDIO_CHUNK_CNT, MQS_AUDIO_CHUNK_CNT);
         if (s_MqsSemFreeSlots == NULL)
         {
             LOGE("HAL_OutputDev_MqsAudio_Start failed - xSemaphoreCreateCounting");
@@ -676,8 +697,7 @@ static hal_output_status_t HAL_OutputDev_MqsAudio_Init(output_dev_t *dev, output
     SAI_TransferTxSetConfigEDMA(MQS_SAI, &s_SaiTxHandle, &edmaTxConfig);
 
     /* Force bit clock to override standard enablement */
-    SAI_TxSetBitClockRate(MQS_SAI, MQS_SAI_CLK_FREQ, kSAI_SampleRate48KHz, kSAI_WordWidth16bits,
-                          edmaTxConfig.channelNums);
+    SAI_TxSetBitClockRate(MQS_SAI, MQS_SAI_CLK_FREQ, kSAI_SampleRate16KHz, kSAI_WordWidth16bits, 2);
 
     return error;
 }

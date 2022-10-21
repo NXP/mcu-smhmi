@@ -1,0 +1,27 @@
+# Copyright 2022 NXP
+# NXP Confidential. This software is owned or controlled by NXP and may only
+# be used strictly in accordance with the applicable license terms found in
+# file LICENSE.txt
+
+ID:       e4ccb790-c5ca-11ec-b6e9-f1bba04d0cc1
+Builder:  2022.0.1
+SDK:      2.11
+Language: English
+Platform: RT1060
+Lexicon:  default
+
+Wakeword: hey nxp
+# Format:  <word> [<penalty>]
+Commands:
+    start [0]
+    cancel [0]
+    confirm [0]
+    go ahead [0]
+    expresso [0]
+    americano [0]
+    cappuccino [0]
+    small [0]
+    large [0]
+    soft [0]
+    strong [0]
+    de register [0]

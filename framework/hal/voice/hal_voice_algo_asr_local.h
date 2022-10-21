@@ -13,93 +13,83 @@
 #include <sln_asr.h>
 #include <stdint.h>
 #include <string.h>
+#include <board_define.h>
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-// languages
-#define IMXRT105S     (0)
-#define NUM_LANGUAGES (1)
+#define IMXRT105S (0)
 
-// applications
-#define ENABLE_COFFEE_MACHINE (1)
-#define NUM_APPS              (ENABLE_COFFEE_MACHINE)
+/* Max number of languages that are supported. Can be increased if needed. */
+#define MAX_NUM_LANGUAGES (4)
 
-#define CHINESE_MANDARIN_SUPPORTED    (0)
+/* Max number of groups that are supported. 3 slots are reserved. Can be increased if needed. */
+#define MAX_GROUPS (7)
 
-/* Only one language active; Change here when wanting to use ASR_CHINESE, ASR_FRENCH etc. */
-#if CHINESE_MANDARIN_SUPPORTED
-#define ACTIVE_LANGUAGE ASR_CHINESE
+#ifdef ENABLE_DSMT_ASR
+#define DEFAULT_ACTIVE_LANGUAGE (ASR_ENGLISH | ASR_CHINESE | ASR_GERMAN | ASR_FRENCH)
+
+#if SELF_WAKE_UP_PROTECTION
+#define MAX_INTERFACES_LANG (MAX_NUM_LANGUAGES * 2)
+#define MAX_INTERFACES_WW   (MAX_NUM_LANGUAGES * 2)
+#define MAX_INTERFACES_CMD  (2)
 #else
-#define ACTIVE_LANGUAGE ASR_ENGLISH
-#endif
+#define MAX_INTERFACES_LANG (MAX_NUM_LANGUAGES)
+#define MAX_INTERFACES_WW   (MAX_NUM_LANGUAGES)
+#define MAX_INTERFACES_CMD  (1)
+#endif /* SELF_WAKE_UP_PROTECTION */
 
-// groups: base, ww, cmd_iot, cmd_elevator, and so on
-#define NUM_GROUPS (NUM_APPS + 3)
-#define MAX_GROUPS (NUM_GROUPS)
-
-// WW in multiple languages (not supported for now in TLHMI)
-#define NUM_INFERENCES_WW (NUM_LANGUAGES)
+#else
+#define DEFAULT_ACTIVE_LANGUAGE (ASR_ENGLISH)
+#endif /* ENABLE_DSMT_ASR */
 
 #define k_nMaxTime (300)
 
 // the response waiting time in ASR session
 #define TIMEOUT_TIME_IN_MS 60000
 
-// Shell Commands Related
-#define ASR_SHELL_COMMANDS_FILE_NAME "asr_shell_commands.dat"
-
-#define AUDIO_EN_01_FILE "audio_en_01_begin.dat"
-#define AUDIO_EN_02_FILE "audio_en_02_begin.dat"
-#define AUDIO_EN_03_FILE "audio_en_03_begin.dat"
-#define AUDIO_EN_04_FILE "audio_en_04_begin.dat"
-#define AUDIO_EN_05_FILE "audio_en_05_begin.dat"
-#define AUDIO_EN_06_FILE "audio_en_06_begin.dat"
-
-#define AUDIO_ZH_01_FILE "audio_zh_01_begin.dat"
-#define AUDIO_ZH_02_FILE "audio_zh_02_begin.dat"
-
-#define AUDIO_DE_01_FILE "audio_de_01_begin.dat"
-#define AUDIO_DE_02_FILE "audio_de_02_begin.dat"
-
-#define AUDIO_FR_01_FILE "audio_fr_01_begin.dat"
-#define AUDIO_FR_02_FILE "audio_fr_02_begin.dat"
-
 // Out-of-box demo languages. Developers can add more language. Note that the runtime max number is up to four
 // languages.
 typedef enum _asr_languages
 {
     UNDEFINED_LANGUAGE = 0,
+
     ASR_ENGLISH        = (1U << 0U),
     ASR_CHINESE        = (1U << 1U),
     ASR_GERMAN         = (1U << 2U),
     ASR_FRENCH         = (1U << 3U),
-    ASR_KOREAN         = (1U << 4U),
-    // DEVELOPERS: add more languages here with the form ASR_XXXXX
+
+    LAST_LANGUAGE,
+
+    /* Below entries are used for self protection mechanism.
+     * Don't guard below entries to avoid the need of defining SELF_WAKE_UP_PROTECTION on CM4. */
+    ASR_ENGLISH_SELF        = (1U << 10U),
+    ASR_CHINESE_SELF        = (1U << 11U),
+    ASR_GERMAN_SELF         = (1U << 12U),
+    ASR_FRENCH_SELF         = (1U << 13U),
 } asr_language_t;
 
-// ASR events. Currently only ASR_SESSION_STARTED and ASR_SESSION_ENDED are used.
-typedef enum _asr_events
-{
-    ASR_SESSION_STARTED,
-    ASR_SESSION_ENDED,
-    //    ASR_COMMAND_DETECTED,
-    //    ASR_COMMAND_NOT_RECOGNIZED,
-    ASR_SESSION_TIMEOUT,
-    //    ASR_CANCELLED,
-} asr_events_t;
-
-// ASR inference engines that cover
-// 1) wake word engine,
-// 2) LED control (demo #1),
-// 3) voice commands in multiple languages (demo #2),
-// 4) dialogic commands (demo #3)
 typedef enum _asr_inference
 {
-    UNDEFINED_INFERENCE    = 0,
-    ASR_WW                 = (1U << 0U),
-    ASR_CMD_COFFEE_MACHINE = (ENABLE_COFFEE_MACHINE << 1U),
+    UNDEFINED_INFERENCE = 0,
+
+    /* Wake Word model - used by all demos */
+    ASR_WW = (1U << 0U),
+
+    /* Voice Commands models for Coffee Machine demo */
+    ASR_CMD_COFFEE_MACHINE = (1U << 1U), /* Coffee configuration (ex: Cappuccino, Strong, Small etc.) */
+    ASR_CMD_USER_REGISTER  = (1U << 2U), /* User's coffee selection registration (ex: Confirm, Cancel) */
+
+    /* Voice Commands models for Elevator demo */
+    ASR_CMD_ELEVATOR       = (1U << 1U), /* Floor selection (ex: Floor one, Floor two etc.) */
+    ASR_CMD_FLOOR_REGISTER = (1U << 2U), /* User's floor selection registration (ex: Confirm, Cancel) */
+
+    /* Voice Commands models for Home Panel demo */
+    ASR_CMD_HP_MAIN_MENU    = (1U << 1U), /* Sub-demo selection (ex: Thermostat, Security etc.) */
+    ASR_CMD_HP_THERMOSTAT   = (1U << 2U), /* Thermostat configuration (ex: Slow, Twenty etc.) */
+    ASR_CMD_HP_SECURITY     = (1U << 3U), /* Security configuration (ex: Activate, Front door etc.) */
+    ASR_CMD_HP_AUDIO_PLAYER = (1U << 4U), /* Audio Player configuration (ex: Next Song, Volume Up etc.) */
 } asr_inference_t;
 
 struct asr_language_model;   // will be used to install the selected languages.
@@ -191,6 +181,7 @@ typedef struct _asr_voice_config
     asr_followup_t followup;
     asr_inference_t demo;        // demo types: LED (demo #1) / iot, elevator, audio, wash (demo #2) / dialog (demo #3)
     asr_language_t multilingual; // runtime language types (demo #2 and #3)
+    asr_language_t currentLanguage;
     asr_ptt_t ptt;
     asr_cmd_res_t cmdresults;
 } asr_voice_config_t;
@@ -208,6 +199,7 @@ typedef enum _asr_voice_detect_status
 typedef struct _asr_inference_result
 {
     asr_voice_detect_status_t status;
+    asr_language_t language;
     int32_t keywordID;
 } asr_inference_result_t;
 

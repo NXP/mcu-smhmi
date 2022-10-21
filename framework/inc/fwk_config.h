@@ -27,26 +27,26 @@ typedef enum _hal_config_status
 extern "C" {
 #endif
 
-hal_config_status_t FWK_ConfigInit();
-hal_config_status_t FWK_ConfigDeinit();
+hal_config_status_t FWK_Config_Init();
+hal_config_status_t FWK_Config_Deinit();
 
-hal_config_status_t FWK_ConfigSetConnectivityType(connectivity_type_t conType);
-connectivity_type_t FWK_ConfigGetConnectivityType();
+hal_config_status_t FWK_Config_SetConnectivityType(connectivity_type_t conType);
+connectivity_type_t FWK_Config_GetConnectivityType();
 
-hal_config_status_t FWK_ConfigSetLogLevel(log_level_t logLevel);
-log_level_t FWK_ConfigGetLogLevel();
+hal_config_status_t FWK_Config_SetLogLevel(log_level_t logLevel);
+log_level_t FWK_Config_GetLogLevel();
 
-hal_config_status_t FWK_ConfigSetDisplayType(display_type_t displayType);
-display_type_t FWK_ConfigGetDisplayType();
+hal_config_status_t FWK_Config_SetDisplayType(display_type_t displayType);
+display_type_t FWK_Config_GetDisplayType();
 
-display_output_t FWK_ConfigGetDisplayOutput();
-hal_config_status_t FWK_ConfigSetDisplayOutput(display_output_t displayOutput);
+display_output_t FWK_Config_GetDisplayOutput();
+hal_config_status_t FWK_Config_SetDisplayOutput(display_output_t displayOutput);
 
-hal_config_status_t FWK_ConfigSetAppData(void *appData, unsigned int appDataSize, unsigned int appDataVersion);
-unsigned int FWK_ConfigGetAppDataVersion();
-unsigned int FWK_ConfigGetAppDataSize();
-void *FWK_ConfigLockAppData();
-void FWK_ConfigUnlockAppData(uint8_t save);
+hal_config_status_t FWK_Config_SetAppData(void *appData, unsigned int appDataSize, unsigned int appDataVersion);
+unsigned int FWK_Config_GetAppDataVersion();
+unsigned int FWK_Config_GetAppDataSize();
+void *FWK_Config_LockAppData();
+void FWK_Config_UnlockAppData(uint8_t save);
 
 #if defined(__cplusplus)
 }

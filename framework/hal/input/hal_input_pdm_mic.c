@@ -140,7 +140,7 @@ hal_input_status_t input_dev_pdm_mic_init(input_dev_t *dev, input_dev_callback_t
     PDM_TransferSetChannelConfigEDMA(MIC_PDM, &s_pdmRxHandle, MIC_PDM_ENABLE_CHANNEL_RIGHT, &channelConfig);
     if (PDM_SetSampleRateConfig(MIC_PDM, MIC_PDM_CLK_FREQ, AUDIO_PCM_SAMPLE_RATE) != kStatus_Success)
     {
-        PRINTF("PDM configure sample rate failed.\r\n");
+        LOGE("PDM configure sample rate failed.\r\n");
         return kStatus_HAL_InputError;
     }
 
@@ -192,17 +192,9 @@ const static input_dev_operator_t input_dev_pdm_mic_ops = {
 static input_dev_t input_dev_pdm_mic = {.id = 1, .ops = &input_dev_pdm_mic_ops, .cap = {.callback = NULL}};
 static input_event_t input_dev_event;
 
-// TODO: workaround for the self-wakeup
-extern volatile int g_MQSPlaying;
 static void pdmCallback(PDM_Type *base, pdm_edma_handle_t *handle, status_t status, void *userData)
 {
     static volatile uint8_t pingPongIdx = 0;
-
-    // TODO: workaround for the self-wakeup
-    if (g_MQSPlaying)
-    {
-        return;
-    }
 
     /* Callback sends message to input_manager to forward to audio */
     if (input_dev_pdm_mic.cap.callback != NULL)

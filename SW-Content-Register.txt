@@ -12,7 +12,7 @@ cmsis                      Name: CMSIS
                            abstraction layer for microcontrollers that are   
                            based on Arm Cortex processors, distributed by    
                            ARM. cores                                        
-                           Location: CMSIS/                                  
+                           Location: {demo}/cm7/CMSIS/                                  
                            Origin: ARM (Apache-2.0) -                        
                            https://github.com/ARM-software/CMSIS_5/releases/t
                            ag/5.6.0                                          
@@ -24,7 +24,7 @@ SDK_Components             Name: SDK components and board peripheral drivers
                            Format: source code                               
                            Description: SDK components and board peripheral  
                            drivers, for example, flash and codec drivers.    
-                           Location: cm4/components, cm7/components                             
+                           Location: {demo}/cm4/components, {demo}/cm7/components                             
                            Origin: NXP (BSD-3-Clause)                        
 
 usb                        Name: USB                                         
@@ -35,7 +35,7 @@ usb                        Name: USB
                            Description: NXP USB stack. This is a version of  
                            the USB stack that has been integrated with the   
                            MCUXpresso SDK.                                   
-                           Location: cm4/usb, cm7/usb                          
+                           Location: {demo}/cm4/usb, {demo}/cm7/usb                          
                            Origin: NXP (BSD-3-Clause)                        
 
 freertos                   Name: FreeRTOS                                    
@@ -45,7 +45,7 @@ freertos                   Name: FreeRTOS
                            Format: source code                               
                            Description: IoT operating system for             
                            microcontrollers                                  
-                           Location: cm4/freertos, cm7/freertos                           
+                           Location: {demo}/cm4/freertos, {demo}/cm7/freertos                           
                            Origin: Real Time Engineers, Ltd. (MIT)           
                            Url: https://aws.amazon.com/freertos/                                            
 
@@ -56,7 +56,7 @@ sdmmc                      Name: SD MMC SDIO Card middleware
                            Format: source code                               
                            Description: A software component support SD card,
                            eMMC card, SDIO card.                             
-                           Location: middleware/sdmmc                        
+                           Location: coffee_machine/sdmmc                        
                            Origin: NXP (BSD-3-Clause)                        
 
 mmcau                      Name: mmCAU S/W Library                           
@@ -72,7 +72,7 @@ mmcau                      Name: mmCAU S/W Library
 LittleFS                   Name: LittleFS                                    
                            Version: 2.2.1                                    
                            Outgoing License: BSD-3-Clause                    
-                           License File: middleware/littlefs/LICENSE.md      
+                           License File: {demo}/cm7/littlefs/LICENSE.md      
                            Format: source code                               
                            Description: LittleFS - A little fail-safe        
                            filesystem designed for microcontrollers                              
@@ -84,8 +84,7 @@ sln_iot_common_platform    Name: IoT Solutions Common Platform
                            Outgoing License: LA_OPT_NXP_Software_License.txt  
                            License File: LA_OPT_NXP_Software_License.txt     
                            Format: Source                                    
-                           Description: Common code for IoT Solutions        
-                           Location: sln_iot_platform             
+                           Description: Common code for IoT Solutions                     
                            Origin: NXP (Proprietary)                                      
 
 oasis                      Name: IoT Solution Oasis Library                  
@@ -97,16 +96,6 @@ oasis                      Name: IoT Solution Oasis Library
                            detection and recognition with enhanced security, 
                            compiled for M7.                                                        
                            Origin: NXP                                       
-
-orbbec_camera              Name: Orbbec camera 3d drivers middleware         
-                           Version: 1.0.1                                    
-                           Outgoing License: Apache License Version 2.0,     
-                           Proprietary                                       
-                           License File:                                     
-                           https://shop.orbbec3d.com/terms-and-conditions    
-                           Format: object code & header files                
-                           Description: Orbbec camera driver                                        
-                           Origin: Orbbec
                                     
 MCMGR                      Name: MCMGR
                            Version: 4.1.1
@@ -114,7 +103,7 @@ MCMGR                      Name: MCMGR
                            License File: COPYING-BSD-3
                            Format: source code
                            Description: Multicore manager
-                           Location: cm4/mcmgr, cm7/mcmgr
+                           Location: {demo}/cm4/mcmgr, {demo}/cm7/mcmgr
                            Origin: NXP (BSD-3-Clause)
 
 multicore                  Name: Multicore SDK
@@ -129,11 +118,11 @@ multicore                  Name: Multicore SDK
 vglite                     Name: vglite
                            Version: 3.0.13_rev2
                            Outgoing License: MIT
-                           License File: cm4/vglite/LICENSE.txt
+                           License File: {demo}/cm4/vglite/LICENSE.txt
                            Format: source code
                            Description: VeriSilicon's platform independent
                            VGLite Graphics library
-                           Location: cm4/vglite
+                           Location: {demo}/cm4/vglite
                            Origin: VeriSilicon (http://www.verisilicon.com/)
                            Url: http://www.verisilicon.com/
 
@@ -141,11 +130,11 @@ mcufont                    Name: mcufont
                            Version: 1.0
                            Outgoing License: MIT
                            License File:
-                           cm4/vglite/font/mcufont/LICENSE
+                           {demo}/cm4/vglite/font/mcufont/LICENSE
                            Format: source code
                            Description: Font rendering library for
                            microcontrollers
-                           Location: cm4/vglite/font/mcufont
+                           Location: {demo}/cm4/vglite/font/mcufont
                            Origin: Petteri Aimonen
                            (https://github.com/PetteriAimonen)
                            Url: https://github.com/mcufont/mcufont
@@ -153,10 +142,107 @@ mcufont                    Name: mcufont
 lvgl                       Name: LVGL
                            Version: 8.0.2
                            Outgoing License: MIT
-                           License File: cm4/lvgl/lvgl/LICENCE.txt
+                           License File: {demo}/cm4/lvgl/lvgl/LICENCE.txt
                            Format: source code
                            Description: Light and Versatile Graphics Library
                            (LVGL)
-                           Location: cm4/lvgl
+                           Location: {demo}/cm4/lvgl
                            Origin: Gabor Kiss-Vamosi
                            Url: https://github.com/lvgl/lvgl
+
+pkcs11                     Name: PKCS #11                                    
+                           Version: NA                                       
+                           Outgoing License: MIT (with RF on RAND patent     
+                           clauses                                           
+                           https://www.oasis-open.org/policies-guidelines/ipr
+                           #RF-on-RAND-Mode)                                 
+                           License File:                                     
+                           freertos/libraries/3rdparty/pkcs11/LICENSE.md
+                           Format: source code                               
+                           Description: PKCS #11 standard for cryptographic  
+                           tokens controlling authentication. Forked from    
+                           https://github.com/oasis-tcs/pkcs11               
+                           Location: freertos/libraries/3rdparty/pkcs11
+                           Origin: OASIS PKCS 11 TC (MIT)                    
+                           Url: https://github.com/amazon-freertos/pkcs11       
+
+VIT                        Name: VIT_v5.4.0                                  
+                           Version: 5.4.0                                    
+                           Outgoing License: LA_OPT_NXP_Software_License.txt
+                           - Additional distribution license granted -       
+                           License in Section 2.3 applies                    
+                           License File: LA_OPT_NXP_Software_License.txt     
+                           Format: Precompiled libraries, header files,      
+                           example application                               
+                           Description: Voice Intelligent Technology library
+                           Location: coffee_machine/cm7/libs/local_voice/vit                          
+                           Origin: NXP (Proprietary)
+
+wifi_nxp                   Name: NXP Wi-Fi driver                            
+                           Version: 1.3.r37.p1                               
+                           Outgoing License: LA_OPT_NXP_Software_License -   
+                           Additional distribution license granted - License
+                           in Section 2.3 applies                            
+                           License File: LA_OPT_NXP_Software_License.txt     
+                           Format: source code, header files, firmware       
+                           binaries                                          
+                           Description: NXP Wi-Fi driver and networking      
+                           utilities                                         
+                           Location: coffee_machine/cm7/wifi                     
+                           Origin: NXP   
+
+mbedtls                    Name: Mbed TLS                                    
+                           Version: 2.27.0                                   
+                           Outgoing License: Apache-2.0                      
+                           License File: {demo}/cm7/mbedtls/LICENSE         
+                           Format: source code                               
+                           Description: Cryptographic and SSL/TLS Library    
+                           Location: {demo}/cm7/mbedtls                      
+                           Origin: ARM(Apache-2.0) -                         
+                           https://github.com/ARMmbed/mbedtls/releases/tag/v2
+                           .26.0     
+
+lwip                       Name: lwIP TCP/IP Stack                           
+                           Version: lwIP git repository (2021-05-11, branch:
+                           master, SHA-1:                                    
+                           7ec4e9be304e7f8953740f10b2c810a292e89449)         
+                           Outgoing License: BSD-3-Clause                    
+                           License File: coffee_machine/cm7/lwip/COPYING        
+                           Format: source code                               
+                           Description: A light-weight TCP/IP stack          
+                           Location: coffee_machine/cm7/lwip/                        
+                           Origin: Swedish Institute of Computer Science     
+                           Url: http://savannah.nongnu.org/projects/lwip  
+
+aws_iot                    Name: AWS IoT                                     
+                           Version: 202107.0.0_rev1                          
+                           Outgoing License: MIT                             
+                           License File: {demo}/cm4/freertos/LICENSE, {demo}/cm7/freertos/LICENSE              
+                           Format: source code                               
+                           Description: IoT operating system for             
+                           microcontrollers                                  
+                           Location: {demo}/cm4/freertos, {demo}/cm7/freertos                           
+                           Origin: Amazon (MIT)                              
+                           Url: https://aws.amazon.com/freertos/ 
+
+voiceseeker                Name: Voice Seeker                                
+                           Version: 0.2.10                                
+                           Outgoing License: Proprietary. See                
+                           LA_OPT_NXP_Software_License.txt.                  
+                           License File: LA_OPT_NXP_Software_License.txt 
+                           Format: Binary and source code                    
+                           Description: Voice Seeker library and wrapper     
+                           source code.                                      
+                           Location: {demo}/cm7/libs/local_voice               
+                           Origin: NXP    
+
+sln_asr                    Name: Solutions ASR                               
+                           Version: 1.0.0                                    
+                           Outgoing License: Proprietary. See                
+                           LA_OPT_NXP_Software_License.txt.                  
+                           License File: LA_OPT_NXP_Software_License.txt     
+                           Format: Binary                                    
+                           Description: Automatic Speech Recognition for i.MX
+                           RT based IoT Solutions                            
+                           Location: {demo}cm7/libs/local_voice
+                           Origin: NXP     

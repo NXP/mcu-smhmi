@@ -626,7 +626,7 @@ static hal_output_status_t HAL_OutputDev_UiFfi_Init(const output_dev_t *dev)
     s_UiSurface.lock   = xSemaphoreCreateMutex();
 
     memset(&s_LastOasisResult, 0x0, sizeof(oasis_lite_result_t));
-    s_LogLevel = FWK_ConfigGetLogLevel();
+    s_LogLevel = FWK_Config_GetLogLevel();
     return error;
 }
 

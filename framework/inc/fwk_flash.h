@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 NXP.
+ * Copyright 2020-2022 NXP.
  * This software is owned or controlled by NXP and may only be used strictly in accordance with the
  * license terms that accompany it. By expressly accepting such terms or by downloading, installing,
  * activating and/or otherwise using the software, you are agreeing that you have read, and that you
@@ -42,7 +42,7 @@ sln_flash_status_t FWK_Flash_Deinit();
 sln_flash_status_t FWK_Flash_Format();
 
 /**
- * @brief Save the data into a file from the file system
+ * @brief Save the data into a file from the file system.
  * @param path Path of the file in the file system
  * @param buf  Buffer which contains the data that is going to be saved
  * @param size Size of the buffer
@@ -64,10 +64,11 @@ sln_flash_status_t FWK_Flash_Append(const char *path, void *buf, unsigned int si
  * @brief Read from a file
  * @param path Path of the file in the file system
  * @param buf  Buffer in which to store the read value
+ * @param offset If reading in chunks, set offset to file current position
  * @param size Size that was read.
  * @return the status of read operation
  */
-sln_flash_status_t FWK_Flash_Read(const char *path, void *buf, unsigned int size);
+sln_flash_status_t FWK_Flash_Read(const char *path, void *buf, unsigned int offset, unsigned int *size);
 
 /**
  * @brief Make directory operation
@@ -75,6 +76,15 @@ sln_flash_status_t FWK_Flash_Read(const char *path, void *buf, unsigned int size
  * @return the status of mkdir operation
  */
 sln_flash_status_t FWK_Flash_Mkdir(const char *path);
+
+/**
+ * @brief Make file with specific attributes
+ * @param path Path of the file in the file system
+ * @param encrypt Specify if the files should be encrypted. Based on FS implementation
+ * this param can be neglected
+ * @return the status of mkfile operation
+ */
+sln_flash_status_t FWK_Flash_Mkfile(const char *path, bool encrypt);
 
 /**
  * @brief Remove file

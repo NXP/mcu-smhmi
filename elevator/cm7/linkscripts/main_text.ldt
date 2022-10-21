@@ -1,0 +1,1 @@
+        *(EXCLUDE_FILE(*flexspi_nor_flash_ops.o *fsl_flexspi.o *sln_flash.o *hal_audio_processing_afe.o *sln_afe.o *libVoiceSeekerLight.a: *libVIT_CM7_v05_06_00.a:) .text*)

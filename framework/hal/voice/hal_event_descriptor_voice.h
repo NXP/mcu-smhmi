@@ -31,6 +31,7 @@ typedef enum _event_voice_id
     GET_VOICE_DEMO,
     SET_VOICE_DEMO,
     STOP_VOICE_CMD_SESSION,
+    SET_VOICE_MODEL,
     LAST_VOICE_EVENT
 } event_voice_id_t;
 
@@ -44,10 +45,10 @@ typedef struct _audio_out_event
     int8_t sound_id;
 } audio_out_event_t;
 
-typedef struct _ww_length_event
+typedef struct _asr_feedback
 {
-    uint32_t ww_len;
-} ww_length_event_t;
+    uint32_t utterance_len;
+} asr_feedback_t;
 
 typedef struct _speaker_playing_event
 {
@@ -76,6 +77,15 @@ typedef struct _set_voice_demo_event
     asr_inference_t demo;
 } set_voice_demo_event_t;
 
+typedef struct _set_asr_config_event
+{
+    asr_inference_t demo;
+    asr_language_t lang;
+    uint8_t ptt;
+    /* ptt = 0 - device awaken via Wake Word.
+     * ptt = 1 - device awaken via another source (Button press, LCD touch etc.) */
+} set_asr_config_event_t;
+
 typedef struct _event_voice
 {
     event_base_t event_base;
@@ -85,12 +95,13 @@ typedef struct _event_voice
         void *data;
         audio_in_event_t audio_in;
         audio_out_event_t audio_out;
-        ww_length_event_t ww_len;
+        asr_feedback_t asr_feedback;
         speaker_playing_event_t speaker_audio;
         set_timeout_duration_event_t set_timeout_duration;
         set_followup_status_event_t set_followup_status;
         set_multilingual_config_event_t set_multilingual_config;
         set_voice_demo_event_t set_voice_demo;
+        set_asr_config_event_t set_asr_config;
     };
 } event_voice_t;
 

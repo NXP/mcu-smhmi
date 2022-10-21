@@ -54,6 +54,7 @@ typedef struct _facedb_ops
     facedb_status_t (*updFaceWithId)(uint16_t id, char *name, void *face, int size);
     facedb_status_t (*getFaceWithId)(uint16_t id, void **pFace);
     facedb_status_t (*getIdsAndFaces)(uint16_t *face_ids, void **pFace);
+    facedb_status_t (*getIdWithName)(char *name, uint16_t *id);
     facedb_status_t (*genId)(uint16_t *new_id);
     facedb_status_t (*getIds)(uint16_t *face_ids);
     bool (*getSaveStatus)(uint16_t id);
@@ -167,6 +168,8 @@ facedb_status_t HAL_Facedb_UpdateName(uint16_t id, char *name);
  * @returns a status
  */
 facedb_status_t HAL_Facedb_UpdateFace(uint16_t id, char *name, void *face, int size);
+
+facedb_status_t HAL_Facedb_GetIdWithName(char *name, uint16_t *pId);
 
 #if defined(__cplusplus)
 }

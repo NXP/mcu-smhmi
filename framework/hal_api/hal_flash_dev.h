@@ -44,8 +44,10 @@ typedef enum _sln_flash_status
 {
     kStatus_HAL_FlashSuccess      = 0,
     kStatus_HAL_FlashFail         = MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Flash, 1),
-    kStatus_HAL_FlashDirExist     = MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Flash, 2),
-    kStatus_HAL_FlashFileNotExist = MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Flash, 3),
+    kStatus_HAL_FlashInvalidParam = MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Flash, 2),
+    kStatus_HAL_FlashDirExist     = MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Flash, 3),
+    kStatus_HAL_FlashFileExist    = MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Flash, 4),
+    kStatus_HAL_FlashFileNotExist = MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Flash, 5),
 } sln_flash_status_t;
 
 /*! @brief Operation that needs to be implemented by a flash device */
@@ -57,8 +59,10 @@ typedef struct _flash_dev_operator
     sln_flash_status_t (*save)(const flash_dev_t *dev, const char *path, void *buf, unsigned int size);
     sln_flash_status_t (*append)(
         const flash_dev_t *dev, const char *path, void *buf, unsigned int size, bool overwrite);
-    sln_flash_status_t (*read)(const flash_dev_t *dev, const char *path, void *buf, unsigned int size);
+    sln_flash_status_t (*read)(
+        const flash_dev_t *dev, const char *path, void *buf, unsigned int offset, unsigned int *size);
     sln_flash_status_t (*mkdir)(const flash_dev_t *dev, const char *path);
+    sln_flash_status_t (*mkfile)(const flash_dev_t *dev, const char *path, bool encrypt);
     sln_flash_status_t (*rm)(const flash_dev_t *dev, const char *path);
     sln_flash_status_t (*rename)(const flash_dev_t *dev, const char *oldPath, const char *newPath);
     sln_flash_status_t (*cleanup)(const flash_dev_t *dev, unsigned int timeout_ms);

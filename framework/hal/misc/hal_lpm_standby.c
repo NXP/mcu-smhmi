@@ -21,18 +21,18 @@
 extern "C" {
 #endif
 void lv_enable_ui_preview(bool enable);
-void board_BacklightControl(bool on);
+void BOARD_BacklightControl(bool on);
 #if defined(__cplusplus)
 }
 #endif
 
-#define LPM_CHECK_TIMER_IN_MS 2000
+#define LPM_CHECK_TIMER_IN_MS      2000
 #define LPM_PRESTANDBY_TIMER_IN_MS 2000
 
 static void _EnterStandbyMode(void)
 {
-    LOGD("Enter standy mode");
-    board_BacklightControl(0);
+    LOGD("[Standby] Enter standby mode");
+    BOARD_BacklightControl(0);
     lv_enable_ui_preview(0);
 }
 
@@ -75,15 +75,16 @@ hal_lpm_status_t HAL_LpmDev_Init(lpm_dev_t *dev,
     dev->callback              = callback;
     dev->preEnterSleepCallback = preEnterSleepCallback;
 
-    dev->timer = xTimerCreate("LpmTimer", pdMS_TO_TICKS(LPM_CHECK_TIMER_IN_MS), pdTRUE, (void *)dev, HAL_LpmDev_TimerCallback);
+    dev->timer =
+        xTimerCreate("LpmTimer", pdMS_TO_TICKS(LPM_CHECK_TIMER_IN_MS), pdTRUE, (void *)dev, HAL_LpmDev_TimerCallback);
     if (dev->timer == NULL)
     {
         LOGE("Lpm Timer create failed");
         return kStatus_HAL_LpmTimerNull;
     }
 
-    dev->preEnterSleepTimer = xTimerCreate("LpmPreEnterSleepTimer", pdMS_TO_TICKS(LPM_PRESTANDBY_TIMER_IN_MS), pdTRUE, (void *)dev,
-                                           HAL_LpmDev_PreEnterSleepTimerCallback);
+    dev->preEnterSleepTimer = xTimerCreate("LpmPreEnterSleepTimer", pdMS_TO_TICKS(LPM_PRESTANDBY_TIMER_IN_MS), pdTRUE,
+                                           (void *)dev, HAL_LpmDev_PreEnterSleepTimerCallback);
     if (dev->preEnterSleepTimer == NULL)
     {
         LOGE("Lpm Pre-Enter Sleep Timer create failed");
@@ -96,7 +97,7 @@ hal_lpm_status_t HAL_LpmDev_Init(lpm_dev_t *dev,
         LOGE("Create Lpm lock fail");
         return kStatus_HAL_LpmLockNull;
     }
-    
+
     FWK_LpmManager_SetSleepMode(kLPMMode_STANDBY);
 
     return ret;
@@ -188,7 +189,7 @@ hal_lpm_status_t HAL_LpmDev_StopPreEnterSleepTimer(const lpm_dev_t *dev)
 hal_lpm_status_t HAL_LpmDev_EnterSleep(const lpm_dev_t *dev, hal_lpm_mode_t mode)
 {
     int ret = kStatus_HAL_LpmSuccess;
-    LOGD("[HAL_LpmDev_EnterSleep] Mode %d", mode);
+    LOGD("[Standby] Enter mode %d", mode);
     switch (mode)
     {
         case kLPMMode_STANDBY:

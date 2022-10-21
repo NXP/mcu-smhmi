@@ -40,7 +40,7 @@
 typedef struct _output_dev output_dev_t;
 
 /*! @brief Types of output devices' callback messages */
-typedef enum _output_event
+typedef enum _output_event_id
 {
     kOutputEvent_SpeakerToAfeFeedback  = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_Output, 1),
     kOutputEvent_VisionAlgoInputNotify = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_Output, 2),
@@ -48,7 +48,30 @@ typedef enum _output_event
     kOutputEvent_OutputInputNotify     = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_Output, 4),
 
     kOutputEvent_Count
+} output_event_id_t;
+
+/*! @brief Structure used to define an event.*/
+typedef struct _output_event
+{
+    /* Eventid from the list above.*/
+	output_event_id_t eventId;
+    event_info_t     eventInfo;
+    /* Pointer to a struct of data that needs to be forwarded. */
+    void *data;
+    /* Size of the struct that needs to be forwarded. */
+    unsigned int size;
+    /* If copy is set to 1, the framework will forward a copy of the data. */
+    unsigned char copy;
 } output_event_t;
+
+/*!
+ * @brief Callback function to notify managers the results of Output devices' inference
+ * @param devId Device ID
+ * @param event Event which took place
+ * @param fromISR True if this operation takes place in an irq, 0 otherwise
+ * @return 0 if the operation was successfully
+ */
+typedef int (*output_dev_callback_t)(int devId, output_event_t event, uint8_t fromISR);
 
 /*! @brief Sources for the output messages */
 typedef enum _output_algo_source
@@ -84,17 +107,6 @@ typedef struct _output_dev_attr_t
     };
 } output_dev_attr_t;
 
-/*!
- * @brief Callback function to notify managers the results of Output devices' inference
- * @param devId Device ID
- * @param event Event which took place
- * @param param Pointer to a struct of data that needs to be forwarded
- * @param size Size of the struct that needs to be forwarded. If size = 0, param should be a pointer to a persistent
- * memory area.
- * @param fromISR True if this operation takes place in an irq, 0 otherwise
- * @return 0 if the operation was successfully
- */
-typedef int (*output_dev_callback_t)(int devId, output_event_t event, void *param, unsigned int size, uint8_t fromISR);
 
 /*! @brief Operation that needs to be implemented by an output device */
 typedef struct _output_dev_operator

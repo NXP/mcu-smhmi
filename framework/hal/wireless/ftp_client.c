@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 NXP.
+ * Copyright 2021-2022 NXP.
  * This software is owned or controlled by NXP and may only be used strictly in accordance with the
  * license terms that accompany it. By expressly accepting such terms or by downloading, installing,
  * activating and/or otherwise using the software, you are agreeing that you have read, and that you
@@ -123,7 +123,8 @@ static status_t _FTP_ReadServerInfo(ftp_info_t *ftpInfo)
     if (ftpInfo != NULL)
     {
         sln_flash_status_t statusFlash;
-        statusFlash = FWK_Flash_Read(FTP_INFO_FILE, ftpInfo, sizeof(ftp_info_t));
+        uint32_t len = sizeof(ftp_info_t);
+        statusFlash  = FWK_Flash_Read(FTP_INFO_FILE, ftpInfo, 0, &len);
         if (statusFlash != kStatus_HAL_FlashSuccess)
         {
             LOGE("FTP file might be corrupted");
@@ -266,7 +267,8 @@ status_t FTP_Init(void)
     else if (statusFlash == kStatus_HAL_FlashDirExist)
     {
         /* Exist try to read */
-        statusFlash = FWK_Flash_Read(FTP_INFO_FILE, &s_ftpInfo, UINT_MAX);
+        uint32_t len;
+        statusFlash = FWK_Flash_Read(FTP_INFO_FILE, NULL, 0, &len);
         if (statusFlash == kStatus_HAL_FlashFileNotExist)
         {
             status = _FTP_SaveDefaultInfo(&s_ftpInfo);

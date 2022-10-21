@@ -191,6 +191,14 @@ typedef struct _fwk_task_info
     char *name;
 } fwk_task_info_t;
 
+typedef enum _event_info
+{
+    kEventInfo_DualCore = 0, /* default */
+    kEventInfo_Local,
+    kEventInfo_Remote,
+    kEventInfo_Invalid
+} event_info_t;
+
 #define AUDIO_PROCESSING_TASK_NAME  "audio_processing"
 #define AUDIO_PROCESSING_TASK_STACK 1536
 

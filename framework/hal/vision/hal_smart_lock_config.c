@@ -86,7 +86,7 @@ static hal_output_status_t _HAL_OutputDev_ConfigInputNotify(const output_dev_t *
         {
             log_level_event_t logLevel;
             event_status_t eventResponseStatus = kEventStatus_Ok;
-            logLevel.logLevel                  = FWK_ConfigGetLogLevel();
+            logLevel.logLevel                  = FWK_Config_GetLogLevel();
 
             if (eventBase.respond != NULL)
             {
@@ -98,11 +98,11 @@ static hal_output_status_t _HAL_OutputDev_ConfigInputNotify(const output_dev_t *
         {
             event_status_t eventResponseStatus = kEventStatus_Ok;
             event_common_t event               = *(event_common_t *)data;
-            log_level_t logLevel               = FWK_ConfigGetLogLevel();
+            log_level_t logLevel               = FWK_Config_GetLogLevel();
             if (logLevel != event.logLevel.logLevel)
             {
                 hal_config_status_t status;
-                status = FWK_ConfigSetLogLevel(event.logLevel.logLevel);
+                status = FWK_Config_SetLogLevel(event.logLevel.logLevel);
                 if (status == kSLNConfigStatus_Error)
                 {
                     LOGE("Failed to write log level config.");
@@ -129,7 +129,7 @@ static hal_output_status_t _HAL_OutputDev_ConfigInputNotify(const output_dev_t *
         {
             display_output_event_t displayOutput;
             event_status_t eventResponseStatus = kEventStatus_Ok;
-            displayOutput.displayOutput        = FWK_ConfigGetDisplayOutput();
+            displayOutput.displayOutput        = FWK_Config_GetDisplayOutput();
 
             if (eventBase.respond != NULL)
             {
@@ -142,11 +142,11 @@ static hal_output_status_t _HAL_OutputDev_ConfigInputNotify(const output_dev_t *
         {
             event_status_t eventResponseStatus = kEventStatus_Ok;
             event_common_t event               = *(event_common_t *)data;
-            display_output_t displayMode       = FWK_ConfigGetDisplayOutput();
+            display_output_t displayMode       = FWK_Config_GetDisplayOutput();
             if (displayMode != event.displayOutput.displayOutput)
             {
                 hal_config_status_t status;
-                status = FWK_ConfigSetDisplayOutput(event.displayOutput.displayOutput);
+                status = FWK_Config_SetDisplayOutput(event.displayOutput.displayOutput);
                 if (status == kSLNConfigStatus_Error)
                 {
                     LOGE("Failed to write display config");
@@ -172,11 +172,11 @@ static hal_output_status_t _HAL_OutputDev_ConfigInputNotify(const output_dev_t *
         {
             event_status_t eventResponseStatus   = kEventStatus_Ok;
             event_common_t event                 = *(event_common_t *)data;
-            connectivity_type_t connectivityType = FWK_ConfigGetConnectivityType();
+            connectivity_type_t connectivityType = FWK_Config_GetConnectivityType();
             if (connectivityType != event.connectivity.connectivityType)
             {
                 hal_config_status_t status;
-                status = FWK_ConfigSetConnectivityType(event.connectivity.connectivityType);
+                status = FWK_Config_SetConnectivityType(event.connectivity.connectivityType);
                 if (status == kSLNConfigStatus_Error)
                 {
                     LOGE("Failed to write connectivity type config");
@@ -202,7 +202,7 @@ static hal_output_status_t _HAL_OutputDev_ConfigInputNotify(const output_dev_t *
         {
             connectivity_event_t connectivity;
             event_status_t eventResponseStatus = kEventStatus_Ok;
-            connectivity.connectivityType      = FWK_ConfigGetConnectivityType();
+            connectivity.connectivityType      = FWK_Config_GetConnectivityType();
             if (eventBase.respond != NULL)
             {
                 eventBase.respond(eventBase.eventId, &connectivity, eventResponseStatus, true);
@@ -264,12 +264,12 @@ oasis_lite_mode_t HAL_OutputDev_SmartLockConfig_GetMode()
 {
     oasis_lite_mode_t mode = kOASISLiteMode_Count;
 
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         mode = smartLockConfig->mode;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return mode;
@@ -278,12 +278,12 @@ oasis_lite_mode_t HAL_OutputDev_SmartLockConfig_GetMode()
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetMode(oasis_lite_mode_t mode)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->mode = mode;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -294,12 +294,12 @@ uint8_t HAL_OutputDev_SmartLockConfig_GetIrPwm()
 {
     uint8_t irPwm = -1;
 
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         irPwm = smartLockConfig->irPwm;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return irPwm;
@@ -308,18 +308,18 @@ uint8_t HAL_OutputDev_SmartLockConfig_GetIrPwm()
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetIrPwm(uint8_t brightness)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if ((brightness < 0) || (100 < brightness))
     {
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
         return ret;
     }
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->irPwm = brightness;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -330,12 +330,12 @@ uint8_t HAL_OutputDev_SmartLockConfig_GetWhitePwm()
 {
     uint8_t whitePwm = -1;
 
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         whitePwm = smartLockConfig->whitePwm;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return whitePwm;
@@ -344,18 +344,18 @@ uint8_t HAL_OutputDev_SmartLockConfig_GetWhitePwm()
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetWhitePwm(uint8_t brightness)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if ((brightness < 0) || (100 < brightness))
     {
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
         return ret;
     }
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->whitePwm = brightness;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -365,12 +365,12 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_SetWhitePwm(uint8_t brightness
 hal_config_status_t HAL_OutputDev_SmartLockConfig_GetPassword(uint8_t *password)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         memcpy(password, smartLockConfig->password, sizeof(smartLockConfig->password));
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -380,12 +380,12 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_GetPassword(uint8_t *password)
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetPassword(uint8_t *password)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         memcpy(smartLockConfig->password, password, sizeof(smartLockConfig->password));
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -395,18 +395,18 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_SetPassword(uint8_t *password)
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetSpeakerVolume(uint32_t speakerVolume)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if ((speakerVolume < 0) || (100 < speakerVolume))
     {
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
         return ret;
     }
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->speakerVolume = speakerVolume;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -416,12 +416,12 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_SetSpeakerVolume(uint32_t spea
 uint32_t HAL_OutputDev_SmartLockConfig_GetSpeakerVolume()
 {
     uint32_t speakerVolume               = -1;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         speakerVolume = smartLockConfig->speakerVolume;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return speakerVolume;
@@ -430,12 +430,12 @@ uint32_t HAL_OutputDev_SmartLockConfig_GetSpeakerVolume()
 uint8_t HAL_OutputDev_SmartLockConfig_GetSleepMode()
 {
     hal_lpm_manager_status_t sleepMode   = -1;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         sleepMode = smartLockConfig->sleepMode;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return sleepMode;
@@ -444,18 +444,18 @@ uint8_t HAL_OutputDev_SmartLockConfig_GetSleepMode()
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetSleepMode(uint8_t sleepMode)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if ((sleepMode != kLPMManagerStatus_SleepDisable) && (sleepMode != kLPMManagerStatus_SleepEnable))
     {
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
         return ret;
     }
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->sleepMode = sleepMode;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -465,13 +465,13 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_SetSleepMode(uint8_t sleepMode
 hal_config_status_t HAL_OutputDev_SmartLockConfig_GetFaceRecThreshold(unsigned int *pThreshold)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         *pThreshold = smartLockConfig->faceRecThreshold;
         ret         = kSLNConfigStatus_Success;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return ret;
@@ -480,14 +480,14 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_GetFaceRecThreshold(unsigned i
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetFaceRecThreshold(unsigned int threshold)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if ((smartLockConfig != NULL) &&
         ((threshold >= MINIMUM_FACE_REC_THRESHOLD) && (threshold <= MAXIMUM_FACE_REC_THRESHOLD)))
     {
         smartLockConfig->faceRecThreshold = threshold;
         ret                               = kSLNConfigStatus_Success;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
     }
 
     return ret;
@@ -499,14 +499,14 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_SetFaceRecThreshold(unsigned i
 asr_voice_config_t HAL_OutputDev_SmartLockConfig_GetAsrConfig()
 {
     asr_voice_config_t asrConfig;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     asrConfig.status = READ_FAIL;
 
     if (smartLockConfig != NULL)
     {
         asrConfig = smartLockConfig->asrConfig;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return asrConfig;
@@ -515,13 +515,13 @@ asr_voice_config_t HAL_OutputDev_SmartLockConfig_GetAsrConfig()
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetAsrConfig(asr_voice_config_t asrConfig)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->asrConfig        = asrConfig;
         smartLockConfig->asrConfig.status = WRITE_SUCCESS;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -532,12 +532,12 @@ uint32_t HAL_OutputDev_SmartLockConfig_GetAsrTimeoutDuration()
 {
     uint32_t timeout_duration = -1;
 
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         timeout_duration = smartLockConfig->asrConfig.timeout;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return timeout_duration;
@@ -546,18 +546,18 @@ uint32_t HAL_OutputDev_SmartLockConfig_GetAsrTimeoutDuration()
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetAsrTimeoutDuration(uint32_t duration)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (duration < 4000)
     {
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
         return ret;
     }
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->asrConfig.timeout = duration;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -568,12 +568,12 @@ asr_followup_t HAL_OutputDev_SmartLockConfig_GetAsrFollowupStatus()
 {
     asr_followup_t followup_enabled = -1;
 
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         followup_enabled = smartLockConfig->asrConfig.followup;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return followup_enabled;
@@ -582,12 +582,12 @@ asr_followup_t HAL_OutputDev_SmartLockConfig_GetAsrFollowupStatus()
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetAsrFollowupStatus(asr_followup_t followup)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->asrConfig.followup = followup;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -597,12 +597,12 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_SetAsrFollowupStatus(asr_follo
 asr_language_t HAL_OutputDev_SmartLockConfig_GetAsrMultilingualConfig()
 {
     asr_language_t multilingualConfig    = ASR_ENGLISH;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         multilingualConfig = smartLockConfig->asrConfig.multilingual;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return multilingualConfig;
@@ -611,19 +611,19 @@ asr_language_t HAL_OutputDev_SmartLockConfig_GetAsrMultilingualConfig()
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetAsrMultilingualConfig(asr_language_t multilingual_config)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (((multilingual_config) & ~(ASR_ENGLISH | ASR_CHINESE | ASR_GERMAN | ASR_FRENCH)) ||
         (multilingual_config == UNDEFINED_LANGUAGE))
     {
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
         return ret;
     }
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->asrConfig.multilingual = multilingual_config;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -633,12 +633,12 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_SetAsrMultilingualConfig(asr_l
 asr_inference_t HAL_OutputDev_SmartLockConfig_GetAsrDemo()
 {
     asr_inference_t demo                 = ASR_CMD_IOT;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if (smartLockConfig != NULL)
     {
         demo = smartLockConfig->asrConfig.demo;
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
     }
 
     return demo;
@@ -647,19 +647,19 @@ asr_inference_t HAL_OutputDev_SmartLockConfig_GetAsrDemo()
 hal_config_status_t HAL_OutputDev_SmartLockConfig_SetAsrDemo(asr_inference_t demo)
 {
     hal_config_status_t ret              = kSLNConfigStatus_Error;
-    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_ConfigLockAppData();
+    smart_lock_config_t *smartLockConfig = (smart_lock_config_t *)FWK_Config_LockAppData();
 
     if ((demo != ASR_CMD_IOT) && (demo != ASR_CMD_ELEVATOR) && (demo != ASR_CMD_ELEVATOR) && (demo != ASR_CMD_AUDIO) &&
         (demo != ASR_CMD_LED) && (demo != ASR_CMD_DIALOGIC_1))
     {
-        FWK_ConfigUnlockAppData(false);
+        FWK_Config_UnlockAppData(false);
         return ret;
     }
 
     if (smartLockConfig != NULL)
     {
         smartLockConfig->asrConfig.demo = demo;
-        FWK_ConfigUnlockAppData(true);
+        FWK_Config_UnlockAppData(true);
         ret = kSLNConfigStatus_Success;
     }
 
@@ -670,11 +670,11 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_SetAsrDemo(asr_inference_t dem
 hal_config_status_t HAL_OutputDev_SmartLockConfig_Init()
 {
     hal_config_status_t ret;
-    ret = FWK_ConfigInit();
+    ret = FWK_Config_Init();
 
     if (ret == kSLNConfigStatus_Success)
     {
-        unsigned int app_version = FWK_ConfigGetAppDataVersion();
+        unsigned int app_version = FWK_Config_GetAppDataVersion();
         if (app_version != APP_CONFIG_VERSION)
         {
             // TODO update mechanism to be decided
@@ -688,7 +688,7 @@ hal_config_status_t HAL_OutputDev_SmartLockConfig_Init()
 #endif
             memcpy(app_config.password, "000000", sizeof(app_config.password));
             app_config.faceRecThreshold = DEFAULT_FACE_REC_THRESHOLD;
-            FWK_ConfigSetAppData(&app_config, sizeof(smart_lock_config_t), APP_CONFIG_VERSION);
+            FWK_Config_SetAppData(&app_config, sizeof(smart_lock_config_t), APP_CONFIG_VERSION);
         }
     }
 

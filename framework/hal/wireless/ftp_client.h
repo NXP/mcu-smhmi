@@ -52,7 +52,7 @@ typedef struct _ftp_info
     ftp_server_info_t serverInfo;
 #if 0
     /* Not supported for now. Use only not secure FTP. */
-*    ftp_cred_t ftp_cred;
+    ftp_cred_t ftp_cred;
 #endif
 } ftp_info_t;
 

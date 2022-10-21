@@ -177,7 +177,7 @@ void MipiOv5640_InitMipiCsi(void)
 
     if (kStatus_Success != MipiOv5640_VerifyCameraClockSource())
     {
-        PRINTF("MIPI CSI clock source not valid\r\n");
+        LOGE("MIPI CSI clock source not valid\r\n");
 
         while (1)
         {

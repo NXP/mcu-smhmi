@@ -24,6 +24,7 @@
 #include "fwk_lpm_manager.h"
 #include "hal_display_dev.h"
 #include "app_config.h"
+#include "smart_tlhmi_event_descriptor.h"
 
 #include "display_support.h"
 #include "task.h"
@@ -37,8 +38,16 @@
 #include "lvgl_support.h"
 
 #define DISPLAY_NAME         "LVGLCoffeeMachine"
-#define LVGL_TASK_PRIORITY   (configMAX_PRIORITIES - 1)
+#define LVGL_TASK_PRIORITY   (configMAX_PRIORITIES - 2)
 #define LVGL_TASK_STACK_SIZE 1024
+
+#if LVGL_MULTITHREAD_LOCK
+#define LVGL_LOCK()   _takeLVGLMutex()
+#define LVGL_UNLOCK() _giveLVGLMutex()
+#else
+#define LVGL_LOCK()
+#define LVGL_UNLOCK()
+#endif /* LVGL_MULTITHREAD_LOCK */
 
 /* LCD input frame buffer is RGB565, converted by PXP. */
 AT_NONCACHEABLE_SECTION_ALIGN(
@@ -47,6 +56,8 @@ AT_NONCACHEABLE_SECTION_ALIGN(
     FRAME_BUFFER_ALIGN);
 volatile bool g_LvglInitialized = false;
 lv_ui guider_ui;
+
+extern preview_mode_t g_PreviewMode;
 
 #if LV_USE_LOG
 static void _PrintCb(const char *buf)
@@ -73,7 +84,9 @@ static void _LvglTask(void *param)
     custom_init(&guider_ui);
     while (1)
     {
+        LVGL_LOCK();
         lv_task_handler();
+        LVGL_UNLOCK();
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
@@ -129,7 +142,7 @@ hal_display_status_t HAL_DisplayDev_LVGLCoffeeMachine_Blit(const display_dev_t *
     static int camerPreviewLayerOn = 0;
 
     // enable camera preview layer in screen with camera preview.
-    if (lv_scr_act() == guider_ui.home)
+    if (lv_scr_act() == guider_ui.home && g_PreviewMode == PREVIEW_MODE_CAMERA)
     {
         if (camerPreviewLayerOn == 0)
         {
@@ -139,7 +152,7 @@ hal_display_status_t HAL_DisplayDev_LVGLCoffeeMachine_Blit(const display_dev_t *
     }
     else
     {
-        // disable camera previe layer in screen without camera preview.
+        // disable camera preview layer in screen without camera preview.
         if (camerPreviewLayerOn == 1)
         {
             camerPreviewLayerOn = 0;

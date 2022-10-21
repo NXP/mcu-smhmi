@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 NXP.
+ * Copyright 2021-2022 NXP.
  * This software is owned or controlled by NXP and may only be used strictly in accordance with the
  * license terms that accompany it. By expressly accepting such terms or by downloading, installing,
  * activating and/or otherwise using the software, you are agreeing that you have read, and that you
@@ -17,7 +17,7 @@
 static wifi_info_t s_wifiInfo;
 static wifi_cred_t *s_wifiCredRef;
 
-#define ENCRYPTED_CREDENTIALS 0
+#define ENCRYPTED_CREDENTIALS 1
 
 #define WIFI_INFO_DIR "wifi_info"
 
@@ -34,6 +34,7 @@ bool WiFi_CredentialsPresent(void)
 status_t WiFi_GetCredentials(wifi_cred_t *cred)
 {
     status_t status = kStatus_Success;
+
     if (cred == NULL)
     {
         LOGE("WiFi credentials NULL pointer");
@@ -59,6 +60,7 @@ status_t WiFi_GetCredentials(wifi_cred_t *cred)
 status_t WiFi_SetCredentials(wifi_cred_t *cred)
 {
     status_t status = kStatus_Success;
+
     if (cred == NULL)
     {
         LOGE("WiFi credentials NULL pointer");
@@ -67,7 +69,8 @@ status_t WiFi_SetCredentials(wifi_cred_t *cred)
 
     if (status == kStatus_Success)
     {
-        sln_flash_status_t statusFlash;
+        sln_flash_status_t statusFlash = kStatus_HAL_FlashSuccess;
+
         if ((cred->ssid.length == 0) && (cred->password.length != 0))
         {
             memcpy(&(s_wifiInfo.wifiCred.password), &cred->password, sizeof(cred->password));
@@ -91,11 +94,14 @@ status_t WiFi_SetCredentials(wifi_cred_t *cred)
 
         if (status == kStatus_Success)
         {
-            statusFlash = FWK_Flash_Save(WIFI_INFO_FILE, &s_wifiInfo, sizeof(wifi_info_t));
+            uint32_t len = sizeof(wifi_info_t);
+            statusFlash  = FWK_Flash_Save(WIFI_INFO_FILE, &s_wifiInfo, len);
+
             if (statusFlash != kStatus_HAL_FlashSuccess)
             {
                 /* Write has failed, bring what was in Flash before */
-                statusFlash = FWK_Flash_Read(WIFI_INFO_FILE, &s_wifiInfo, sizeof(wifi_cred_t));
+                statusFlash = FWK_Flash_Read(WIFI_INFO_FILE, &s_wifiInfo, 0, &len);
+
                 if (statusFlash != kStatus_HAL_FlashSuccess)
                 {
                     LOGE("WiFi file might be corrupted");
@@ -116,10 +122,13 @@ status_t WiFi_SetCredentials(wifi_cred_t *cred)
 
 status_t WiFi_EraseCredentials(void)
 {
-    status_t status = kStatus_Success;
-    sln_flash_status_t statusFlash;
-    memset(&(s_wifiInfo.wifiCred), 0, sizeof(wifi_cred_t));
-    statusFlash = FWK_Flash_Save(WIFI_INFO_FILE, &s_wifiInfo, sizeof(wifi_info_t));
+    status_t status                = kStatus_Success;
+    sln_flash_status_t statusFlash = kStatus_HAL_FlashSuccess;
+    wifi_cred_t wifi_cred;
+
+    memset(&wifi_cred, 0, sizeof(wifi_cred_t));
+    statusFlash = FWK_Flash_Save(WIFI_INFO_FILE, &wifi_cred, sizeof(wifi_info_t));
+
     if (statusFlash != kStatus_HAL_FlashSuccess)
     {
         status = kStatus_Fail;
@@ -127,6 +136,7 @@ status_t WiFi_EraseCredentials(void)
     else
     {
         s_wifiCredRef = NULL;
+        memset(&(s_wifiInfo.wifiCred), 0, sizeof(wifi_cred_t));
     }
 
     return status;
@@ -134,33 +144,52 @@ status_t WiFi_EraseCredentials(void)
 
 status_t WiFi_LoadCredentials(void)
 {
-    status_t status = kStatus_Success;
-    sln_flash_status_t statusFlash;
-    statusFlash = FWK_Flash_Mkdir(WIFI_INFO_DIR);
+    status_t status                = kStatus_Success;
+    sln_flash_status_t statusFlash = FWK_Flash_Mkdir(WIFI_INFO_DIR);
+
     if ((statusFlash == kStatus_HAL_FlashSuccess) || (statusFlash == kStatus_HAL_FlashDirExist))
     {
-        statusFlash   = FWK_Flash_Read(WIFI_INFO_FILE, &s_wifiInfo, sizeof(wifi_info_t));
+        uint32_t len  = sizeof(wifi_info_t);
+        statusFlash   = FWK_Flash_Read(WIFI_INFO_FILE, &s_wifiInfo, 0, &len);
         s_wifiCredRef = NULL;
-        if (statusFlash != kStatus_HAL_FlashSuccess)
+
+        if (statusFlash == kStatus_HAL_FlashFileNotExist)
         {
             LOGD("WiFi Info File doesn't exist. Create it with default values");
-            /* Create the file with default values */
-            memset(&s_wifiInfo, 0, sizeof(wifi_info_t));
-            s_wifiInfo.state = kWiFi_On;
-            statusFlash      = FWK_Flash_Save(WIFI_INFO_FILE, &s_wifiInfo, sizeof(wifi_info_t));
+#if ENCRYPTED_CREDENTIALS
+            /* Create an encrypted entry in the file-system */
+            statusFlash = FWK_Flash_Mkfile(WIFI_INFO_FILE, true);
+
             if (statusFlash != kStatus_HAL_FlashSuccess)
             {
                 status = kStatus_Fail;
             }
+            else
+#endif /* ENCRYPTED_CREDENTIALS */
+            {
+                /* Write the file with default values */
+                memset(&s_wifiInfo, 0, sizeof(wifi_info_t));
+                s_wifiInfo.state = kWiFi_On;
+                statusFlash      = FWK_Flash_Save(WIFI_INFO_FILE, &s_wifiInfo, sizeof(wifi_info_t));
+                if (statusFlash != kStatus_HAL_FlashSuccess)
+                {
+                    status = kStatus_Fail;
+                }
+            }
         }
-        else
+        else if (kStatus_HAL_FlashSuccess == statusFlash)
         {
-            LOGD("WiFi credentials loaded from flash SSID <%s> Password <%s>.", s_wifiInfo.wifiCred.ssid.length,
+            LOGD("WiFi credentials loaded from flash SSID <%s> Password <%s>.", s_wifiInfo.wifiCred.ssid.value,
                  s_wifiInfo.wifiCred.password.value);
             if ((s_wifiInfo.wifiCred.password.length != 0) && (s_wifiInfo.wifiCred.ssid.length != 0))
             {
                 s_wifiCredRef = &(s_wifiInfo.wifiCred);
             }
+        }
+        else
+        {
+            LOGE("Failed to load the credentials");
+            status = kStatus_Fail;
         }
     }
     else
@@ -184,12 +213,13 @@ wifi_state_t WiFi_GetState(void)
 status_t WiFi_SetState(wifi_state_t state)
 {
     status_t status = kStatus_Success;
+
     if (s_wifiInfo.state != state)
     {
-        sln_flash_status_t statusFlash;
-        wifi_state_t oldState = s_wifiInfo.state;
-        s_wifiInfo.state      = state;
-        statusFlash           = FWK_Flash_Save(WIFI_INFO_FILE, &s_wifiInfo, sizeof(wifi_info_t));
+        sln_flash_status_t statusFlash = kStatus_HAL_FlashSuccess;
+        wifi_state_t oldState          = s_wifiInfo.state;
+        s_wifiInfo.state               = state;
+        statusFlash                    = FWK_Flash_Save(WIFI_INFO_FILE, &s_wifiInfo, sizeof(wifi_info_t));
         if (statusFlash != kStatus_HAL_FlashSuccess)
         {
             status           = kStatus_Fail;

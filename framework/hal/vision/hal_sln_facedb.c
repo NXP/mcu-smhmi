@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 NXP.
+ * Copyright 2020-2022 NXP.
  * This software is owned or controlled by NXP and may only be used strictly in accordance with the
  * license terms that accompany it. By expressly accepting such terms or by downloading, installing,
  * activating and/or otherwise using the software, you are agreeing that you have read, and that you
@@ -37,15 +37,13 @@
 
 #define RESERVED_DATA 0x6
 
-#define OASIS_DIR "oasis"
-
 #define METADATA_FILE_NAME \
-    OASIS_DIR              \
+    OASIS_FACE_DB_DIR      \
     "/"                    \
     "Metadata"
 
 #define OASIS_FACEDATABASE \
-    OASIS_DIR              \
+    OASIS_FACE_DB_DIR      \
     "/"
 
 typedef enum _face_mapping_bitwise
@@ -102,6 +100,7 @@ const facedb_ops_t g_facedb_ops = {
     .getSaveStatus   = HAL_Facedb_GetSaveStatus,
     .getFaceCount    = HAL_Facedb_GetCount,
     .getNameWithId   = HAL_Facedb_GetName,
+    .getIdWithName   = HAL_Facedb_GetIdWithName,
 };
 
 /*******************************************************************************
@@ -208,7 +207,7 @@ static sln_flash_status_t _Facedb_Load()
         {
             char path[20];
             _Facedb_GeneratePathFromIndex(id, path);
-            status = FWK_Flash_Read(path, (FACE_ENTRY(id)), s_OasisMetadata.faceEntrySize);
+            status = FWK_Flash_Read(path, (FACE_ENTRY(id)), 0, &s_OasisMetadata.faceEntrySize);
             if (status != kStatus_HAL_FlashSuccess)
             {
                 LOGE("FaceDB: Failed to load face database at path \"%s\".", path);
@@ -235,7 +234,7 @@ static sln_flash_status_t _Facedb_Load()
             char path[20];
             LOGD("FaceDB: Update operation not saved on last run for id %d, load older version", id);
             _Facedb_GeneratePathFromIndex(id, path);
-            status         = FWK_Flash_Read(path, (FACE_ENTRY(id)), s_OasisMetadata.faceEntrySize);
+            status         = FWK_Flash_Read(path, (FACE_ENTRY(id)), 0, &s_OasisMetadata.faceEntrySize);
             updateMetadata = true;
             if (status != kStatus_HAL_FlashSuccess)
             {
@@ -274,12 +273,13 @@ static sln_flash_status_t _Facedb_Load()
 
 static facedb_status_t _Facedb_Init()
 {
-    sln_flash_status_t status = FWK_Flash_Mkdir(OASIS_DIR);
+    sln_flash_status_t status = FWK_Flash_Mkdir(OASIS_FACE_DB_DIR);
     facedb_status_t ret       = kFaceDBStatus_Success;
     if (status == kStatus_HAL_FlashDirExist)
     {
         /* Already exists assume everything is ok don't over engineer for now */
-        status = FWK_Flash_Read(METADATA_FILE_NAME, &s_OasisMetadata, sizeof(facedb_metadata_t));
+        uint32_t len = sizeof(facedb_metadata_t);
+        status       = FWK_Flash_Read(METADATA_FILE_NAME, &s_OasisMetadata, 0, &len);
         if (status == kStatus_HAL_FlashSuccess)
         {
             if ((s_OasisMetadata.featureVersion != FEATURE_VERSION) || (s_OasisMetadata.modelVersion != MODEL_VERSION))
@@ -626,7 +626,7 @@ facedb_status_t HAL_Facedb_AddFace(uint16_t id, char *name, void *face, int size
             s_OasisMetadata.faceMapping[id] = FACE_IN_USE;
             s_OasisMetadata.numberFaces++;
 
-            LOGD("FaceDb: Added face to RAM successfully :%d %s.", id, name);
+            LOGD("FaceDb: Added face to RAM successfully :%d %s.", id, faceEntry->name);
 
 #if AUTOSAVE
             /* Save to Flash */
@@ -634,7 +634,7 @@ facedb_status_t HAL_Facedb_AddFace(uint16_t id, char *name, void *face, int size
             status                    = _Facedb_SaveFace(id);
             if (status == kStatus_HAL_FlashSuccess)
             {
-                LOGD("FaceDb: Added face to flash successfully :%d %s.", id, name);
+                LOGD("FaceDb: Added face to flash successfully :%d %s.", id, faceEntry->name);
 
                 /* Update Flash metadata */
                 _Facedb_UpdateMetadata();
@@ -934,7 +934,8 @@ facedb_status_t HAL_Facedb_UpdateName(uint16_t id, char *name)
         if ((s_OasisMetadata.faceMapping[id] & (1 << kFaceMappingBitWise_Used)) == FACE_IN_USE)
         {
             facedb_entry_t *faceEntry = (facedb_entry_t *)(FACE_ENTRY(id));
-            memcpy(faceEntry->name, name, sizeof(faceEntry->name));
+            uint8_t nameSize = (FACE_NAME_MAX_LEN < strlen(name)) ? (FACE_NAME_MAX_LEN + 1) : (strlen(name) + 1);
+            memcpy(faceEntry->name, name, nameSize);
 #if AUTOSAVE
             sln_flash_status_t status = kStatus_HAL_FlashSuccess;
 
@@ -1093,4 +1094,10 @@ facedb_status_t HAL_Facedb_GenId(uint16_t *new_id)
 
     return ret;
 }
+
+facedb_status_t HAL_Facedb_GetIdWithName(char *name, uint16_t *pId)
+{
+    return _Facedb_GetIdFromName(name, pId);
+}
+
 #endif /* ENABLE_FACEDB */

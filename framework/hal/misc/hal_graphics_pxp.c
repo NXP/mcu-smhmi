@@ -54,9 +54,16 @@ typedef struct _gfx_pxp_handle
 static gfx_pxp_handle_t s_GfxPxpHandle;
 static gfx_surface_t s_SurfGray888x;
 
+// dynamic allocate temporary buffer once, not free until program ends
+static char *ptmp_buffer   = NULL;
+static int tmp_buffer_size = 0;
+
 static int HAL_GfxDev_Pxp_ComposeSurfaceAdaptForScaleAndPsRotate(const gfx_surface_t *pSrc,
                                                                  const gfx_surface_t *pDst,
                                                                  gfx_surface_t *pSrc_adapt);
+static int HAL_GfxDev_Pxp_BlitSurfaceAdaptForScaleAndObRotate(const gfx_surface_t *pSrc,
+                                                              const gfx_surface_t *pDst,
+                                                              gfx_surface_t *pSrc_adapt);
 
 void PXP_IRQHandler(void)
 {
@@ -623,6 +630,51 @@ static int HAL_GfxDev_Pxp_YUYV1P422ToYUV420P(gfx_surface_t *pSrc, gfx_surface_t 
     return 0;
 }
 
+static int HAL_GfxDev_Pxp_BlitSurfaceAdaptForScaleAndObRotate(const gfx_surface_t *pSrc,
+                                                              const gfx_surface_t *pDst,
+                                                              gfx_surface_t *pSrc_adapt)
+{
+    int error = 0;
+
+    if (ptmp_buffer == NULL)
+    {
+        tmp_buffer_size = pDst->pitch * pDst->width;
+        ptmp_buffer     = FWK_MALLOC(tmp_buffer_size);
+    }
+    else
+    {
+        if (tmp_buffer_size < (pDst->pitch * pDst->width))
+        {
+            FWK_FREE(ptmp_buffer);
+            tmp_buffer_size = pDst->pitch * pDst->width;
+            ptmp_buffer     = FWK_MALLOC(tmp_buffer_size);
+        }
+    }
+    if (ptmp_buffer == NULL)
+    {
+        LOGE("Cannot allocate memory for temporary buffer");
+        return -1;
+    }
+
+    pSrc_adapt->height   = pDst->height;
+    pSrc_adapt->width    = pDst->width;
+    pSrc_adapt->left     = pDst->left;
+    pSrc_adapt->top      = pDst->top;
+    pSrc_adapt->right    = pDst->right;
+    pSrc_adapt->bottom   = pDst->bottom;
+    pSrc_adapt->pitch    = pDst->pitch * pDst->width / pDst->height;
+    pSrc_adapt->format   = pDst->format;
+    pSrc_adapt->swapByte = 0;
+    pSrc_adapt->buf      = ptmp_buffer;
+    pSrc_adapt->lock     = NULL;
+
+    gfx_rotate_config_t rotate;
+    rotate.target = kGFXRotate_SRCSurface;
+    rotate.degree = kCWRotateDegree_0;
+    error         = gfx_blit(pSrc, pSrc_adapt, &rotate, kFlipMode_None);
+    return error;
+}
+
 /*
  * @brief blit the source surface to the destination surface.
  *
@@ -667,7 +719,7 @@ int HAL_GfxDev_Pxp_Blit(
         return error;
     }
 
-    // WR for PXP limitation: PXP can not do PS rotate and scale at the same time
+    // WR for PXP limitation: PXP can not do PS/OB rotate and scale at the same time
     // which would cause several vertical garbage lines on the left
     // will do the rotate on the DST surface
     if (((pSrc->height != pDst->height) || (pSrc->width != pDst->width)) &&
@@ -675,8 +727,21 @@ int HAL_GfxDev_Pxp_Blit(
     {
         if ((pRotate->target == kGFXRotate_DSTSurface) || (flip != kFlipMode_None))
         {
-            LOGE("PXP:scale + dst rotate with overlay is currently unsupported!!");
-            return -1;
+            // LOGE("PXP:scale + dst rotate with overlay is currently unsupported!!");
+            // hotfix for silicon bug: PXP can not do OB rotate and scale at the same time
+            // which would cause several vertical garbage lines on the left
+            // split to two steps for this case: first scale and then rotate
+
+            // first scale
+            gfx_surface_t src_adjust;
+            error = HAL_GfxDev_Pxp_BlitSurfaceAdaptForScaleAndObRotate(pSrc, pDst, &src_adjust);
+            if (error != 0)
+            {
+                LOGE("HAL_GfxDev_Pxp_BlitSurfaceAdaptForScaleAndObRotate failed");
+                return -1;
+            }
+            // then rotate
+            pSrc = &src_adjust;
         }
 
         if (pRotate->target == kGFXRotate_SRCSurface)
@@ -913,27 +978,13 @@ int HAL_GfxDev_Pxp_DrawPicture(const gfx_dev_t *dev,
     }
     else /* in most cases, we can do optimization by 2 pixels per operation */
     {
-        uint32_t start_odd = x & 1;
-        uint32_t end_odd   = w_end & 1;
-
+        uint16_t *pSrc;
+        uint16_t *pDst;
         for (int i = y; i < h_end; i++)
         {
-            int j = x;
-            if (start_odd)
-            {
-                *(pCanvasBuffer + i * rgb565Width + j++) = *pIconRgb565++;
-            }
-
-            for (; j < w_end; j += 2)
-            {
-                *(uint32_t *)(pCanvasBuffer + i * rgb565Width + j) = *(uint32_t *)pIconRgb565;
-                pIconRgb565 += 2;
-            }
-
-            if (end_odd)
-            {
-                *(pCanvasBuffer + i * rgb565Width + j - 1) = *pIconRgb565++;
-            }
+            pDst = pCanvasBuffer + i * rgb565Width + x;
+            pSrc = pIconRgb565 + w * (i - y);
+            memcpy(pDst, pSrc, w * sizeof(uint16_t));
         }
     }
 
@@ -1053,10 +1104,6 @@ static int HAL_GfxDev_Pxp_ComposeSurfaceAdaptForScaleAndPsRotate(const gfx_surfa
                                                                  gfx_surface_t *pSrc_adapt)
 {
     int error = 0;
-
-    // dynamic allocate temporary buffer once, not free until program ends
-    static char *ptmp_buffer   = NULL;
-    static int tmp_buffer_size = 0;
     if (ptmp_buffer == NULL)
     {
         tmp_buffer_size = pDst->pitch * pDst->height;
@@ -1127,7 +1174,7 @@ int HAL_GfxDev_Pxp_Compose(const gfx_dev_t *dev,
 {
     int error = 0;
 
-    // hotfix for silicon bug: PXP can not do PS rotate and scale at the same time
+    // hotfix for silicon bug: PXP can not do PS/OutputBuffer rotate and scale at the same time
     // which would cause several vertical garbage lines on the left
     // split to two steps for this case: first scale and then rotate
     if ((((pSrc->bottom - pSrc->top + 1) != (pDst->bottom - pDst->top + 1)) ||
@@ -1140,17 +1187,33 @@ int HAL_GfxDev_Pxp_Compose(const gfx_dev_t *dev,
 
         if ((pRotate->target == kGFXRotate_DSTSurface) || (flip != kFlipMode_None))
         {
-            LOGE("PXP:scale + dst rotate with overlay is currently unsupported");
-            return -1;
-        }
-        error = HAL_GfxDev_Pxp_ComposeSurfaceAdaptForScaleAndPsRotate(pSrc, pDst, &src_adjust);
-        if (error != 0)
-        {
-            LOGE("HAL_GfxDev_Pxp_ComposeSurfaceAdaptForScaleAndPsRotate failed");
-            return -1;
+            // LOGE("PXP:scale + dst rotate with overlay is currently unsupported");
+            // hotfix for silicon bug: PXP can not do OB rotate and scale at the same time
+            // which would cause several vertical garbage lines on the left
+            // split to two steps for this case: first scale and then rotate
+
+            // first scale
+            error = HAL_GfxDev_Pxp_BlitSurfaceAdaptForScaleAndObRotate(pSrc, pDst, &src_adjust);
+            if (error != 0)
+            {
+                LOGE("HAL_GfxDev_Pxp_BlitSurfaceAdaptForScaleAndObRotate failed");
+                return -1;
+            }
+            // then rotate
+            pSrc = &src_adjust;
         }
 
-        pSrc = &src_adjust;
+        if (pRotate->target == kGFXRotate_SRCSurface)
+        {
+            error = HAL_GfxDev_Pxp_ComposeSurfaceAdaptForScaleAndPsRotate(pSrc, pDst, &src_adjust);
+            if (error != 0)
+            {
+                LOGE("HAL_GfxDev_Pxp_ComposeSurfaceAdaptForScaleAndPsRotate failed");
+                return -1;
+            }
+
+            pSrc = &src_adjust;
+        }
     }
 
     /* handle the GRAY16 source surface as the PXP didn't support this format */

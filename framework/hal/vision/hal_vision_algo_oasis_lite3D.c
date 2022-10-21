@@ -402,7 +402,7 @@ static void _oasis_lite_EvtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTC
             {
                 result->reg_result = kOASISLiteRegistrationResult_Success;
                 result->face_id    = id;
-                if (id >= 0)
+                if (id != -1)
                 {
                     char *faceName = HAL_Facedb_GetName(id);
                     strcpy(result->name, faceName);
@@ -412,7 +412,7 @@ static void _oasis_lite_EvtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTC
             {
                 result->reg_result = kOASISLiteRegistrationResult_Duplicated;
                 result->face_id    = id;
-                if (id >= 0)
+                if (id != -1)
                 {
                     char *faceName = HAL_Facedb_GetName(id);
                     strcpy(result->name, faceName);

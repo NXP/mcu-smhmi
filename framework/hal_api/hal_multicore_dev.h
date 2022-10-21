@@ -78,7 +78,7 @@ typedef struct _multicore_dev_operator
     /* start the dev */
     hal_multicore_status_t (*start)(const multicore_dev_t *dev);
     /* Multicore Send the message */
-    hal_multicore_status_t (*send)(const multicore_dev_t *dev, void *data, uint32_t size);
+    hal_multicore_status_t (*send)(const multicore_dev_t *dev, void *data, unsigned int size);
     /* input notify */
     hal_multicore_status_t (*inputNotify)(const multicore_dev_t *dev, void *data);
 } multicore_dev_operator_t;

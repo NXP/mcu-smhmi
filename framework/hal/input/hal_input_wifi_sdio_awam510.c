@@ -22,17 +22,30 @@
 #include "fwk_input_manager.h"
 #include "fwk_common.h"
 #include "fwk_log.h"
-#include "fwk_sln_task.h"
+#include "fwk_task.h"
 #include "event_groups.h"
 #include "semphr.h"
 #include "hal_event_descriptor_common.h"
 #include "hal_vision_algo.h"
+#if ENABLE_FTP_CLIENT
 #include "ftp_client_api.h"
+#endif /* ENABLE_FTP_CLIENT */
+
+#if ENABLE_OTA
+#include "aws_demo_config.h"
+#include "ota_core_mqtt.h"
+#endif /* ENABLE_OTA */
+
 #include "wm_net.h"
+#include "app_config.h"
 
 #define WIFI_TASK_NAME     "WIFI"
 #define WIFI_TASK_STACK    1024
 #define WIFI_TASK_PRIORITY 4
+
+#if ENABLE_OTA
+static TaskHandle_t s_otaTaskHandler = NULL;
+#endif /* ENABLE_OTA */
 
 /**
  * @enum _wifi_events
@@ -42,6 +55,7 @@
 enum _wifi_events
 {
     kWiFi_Join,        /**< kWiFi_Join -> connected to the network specify by the WiFI credentials.*/
+    kWiFi_Leave,       /**< kWiFi_Leave -> disconnect from the network.*/
     kWiFi_Credentials, /**< kWiFi_Credentials -> WiFi credentials were changed or erase.*/
     kWiFi_StateChange, /**< kWiFi_StateChange -> Turn off/on the WiFi driver.*/
     kWiFi_Reset,       /**< kWiFi_Reset -> Reset the WiFi.*/
@@ -72,7 +86,7 @@ static void *s_WiFiTaskTCBBReference = (void *)&s_WiFiTaskTCB;
 #else
 static void *s_WiFiTaskStack         = NULL;
 static void *s_WiFiTaskTCBBReference = NULL;
-#endif
+#endif /* FWK_SUPPORT_STATIC_ALLOCATION */
 
 static status_t _getIPAddress(char *valueToString);
 static status_t _getNetworkSSID(char *valueToString);
@@ -93,6 +107,12 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_Deinit(const input_dev_t *dev
 static hal_input_status_t HAL_InputDev_WiFiAWAM510_Start(const input_dev_t *dev);
 static hal_input_status_t HAL_InputDev_WiFiAWAM510_Stop(const input_dev_t *dev);
 static hal_input_status_t HAL_InputDev_WiFiAWAM510_InputNotify(const input_dev_t *dev, void *param);
+
+typedef struct _wifi_task
+{
+    fwk_task_t task;
+    fwk_task_data_t data;
+} wifi_task_t;
 
 const static output_dev_operator_t s_OutputDev_WiFiAWAM510Ops = {
     .init   = HAL_OutputDev_WiFiAWAM510_Init,
@@ -130,10 +150,12 @@ static output_dev_t s_OutputDev_WiFiAWAM510 = {
                    .expectedValue = "PassOfTheNetwork",
                    .description   = "Password",
                    .get           = _getNetworkPassword},
+#if ENABLE_FTP_CLIENT
             [3] = {.name          = "FTP_IP/Port",
                    .expectedValue = "x.x.x.x/Port",
                    .description   = "IP - 0.0.0.0/0 if not set",
                    .get           = _getFTPServerInfo},
+#endif /* ENABLE_FTP_CLIENT */
         },
     .cap.callback = NULL,
 };
@@ -141,7 +163,7 @@ static output_dev_t s_OutputDev_WiFiAWAM510 = {
 static input_dev_t s_InputDev_WiFiAWAM510 = {
     .id = 1, .name = "WIFIAWAM510", .ops = &s_InputDev_WiFiAWAM510Ops, .cap = {.callback = NULL}};
 
-static fwk_task_t s_WiFiTask;
+static wifi_task_t s_WiFiTask = {0};
 static fwk_message_t s_WiFiMessage;
 static uint8_t s_WiFiState = kWiFi_State_None;
 static SemaphoreHandle_t s_WiFiMutex;
@@ -179,6 +201,50 @@ static void _advertiseWiFiConnectionStatus(bool isConnected)
 }
 
 /**
+ * @fn void __advertiseWiFiOTAStatus(uint8_t)
+ * @brief Advertise wifi ota status
+ */
+void _advertiseWiFiOTAStatus(uint8_t percentage)
+{
+#if ENABLE_OTA
+    /* Let the function exist not to break the build, but do nothing */
+    uint32_t receiverList = (1 << kFWKTaskID_Output) | (1 << kFWKTaskID_VisionAlgo) | (1 << kFWKTaskID_Audio);
+
+    if (s_InputDev_WiFiAWAM510.cap.callback != NULL)
+    {
+        input_event_t inputEvent = {0};
+        event_common_t eventOTA  = {0};
+
+        uint8_t fromISR = __get_IPSR();
+        /* Build event */
+
+        if (percentage == 0)
+        {
+            eventOTA.eventBase.eventId = kEventID_OTAStart;
+        }
+        else if (percentage >= 100)
+        {
+            eventOTA.eventBase.eventId = kEventID_OTAStop;
+        }
+        else
+        {
+            eventOTA.eventBase.eventId    = kEventID_OTAStatus;
+            eventOTA.otaStatus.percentage = percentage;
+        }
+
+        /* Build the input event */
+        inputEvent.eventId                  = kInputEventID_Recv;
+        inputEvent.size                     = sizeof(event_common_t);
+        inputEvent.u.inputData.data         = &eventOTA;
+        inputEvent.u.inputData.copy         = 1;
+        inputEvent.u.inputData.receiverList = receiverList;
+
+        s_InputDev_WiFiAWAM510.cap.callback(&s_InputDev_WiFiAWAM510, &inputEvent, fromISR);
+    }
+#endif /* ENABLE_OTA */
+}
+
+/**
  * @fn void _setWiFiState(enum _wifi_state_machine)
  * @brief Set the state of the wifi connection Connected/Disconnected/None/Provisioning and advertise change of state
  *
@@ -206,6 +272,7 @@ static void _setWiFiState(enum _wifi_state_machine newState)
     xSemaphoreGive(s_WiFiMutex);
 }
 
+#if ENABLE_FTP_CLIENT
 /**
  * @fn status_t ___getFTPServerInfo(char*)
  * @brief Function that converts the ftp server ip and port into a readable string
@@ -238,6 +305,7 @@ static status_t _getFTPServerInfo(char *valueToString)
     }
     return status;
 }
+#endif /* ENABLE_FTP_CLIENT */
 
 /**
  * @fn status_t __getNetworkPassword(char*)
@@ -314,22 +382,29 @@ static status_t _getIPAddress(char *valueToString)
 }
 
 /**
- * @fn void _wifiAsyncCallback(enum wifi_connection_event)
- * @brief Does the communication with the WiFi thread. If the WiFi Thread encounters a problem notify the application
+ * @fn void _wifiAsyncConnect(void)
+ * @brief Called from WiFi layer if the connection was a success
  * layer
  *
- * @param reason The reason for notify -> Connect/Disconnect
  */
-static void _wifiAsyncCallback(enum wifi_connection_event reason)
+static void _wifiAsyncConnect(void)
 {
-    if (reason == WIFI_CONNECTION_DISCONNECTED)
-    {
-        _setWiFiState(kWiFi_State_DisconnectedAsync);
-    }
-    else if (reason == WIFI_CONNECTION_CONNECTED)
-    {
-        _setWiFiState(kWiFi_State_Connected);
-    }
+    _setWiFiState(kWiFi_State_Connected);
+}
+
+/**
+ * @fn void _wifiAsyncDisconnect(enum void)
+ * @brief  Called from WiFi layer if a disconnection occurred
+ * layer
+ *
+ */
+static void _wifiAsyncDisconnect(void)
+{
+    fwk_message_t *pWiFiJoinMsg;
+    _setWiFiState(kWiFi_State_DisconnectedAsync);
+    pWiFiJoinMsg     = &s_WiFiMessage;
+    pWiFiJoinMsg->id = kWiFi_Join;
+    FWK_Message_Put(kAppTaskID_WiFi, &pWiFiJoinMsg);
 }
 
 /* Not used for now */
@@ -359,8 +434,10 @@ static void _doDeinit(void)
  */
 static void _doInit(void)
 {
-    int result = WPL_Init(_wifiAsyncCallback);
     LOGD("Start init ");
+    sln_wifi_connection_cbs_t cb = {.connected = _wifiAsyncConnect, .disconnected = _wifiAsyncDisconnect};
+    int result                   = WPL_Init(cb);
+
     if (result == WPL_SUCCESS)
     {
         result = WPL_Start();
@@ -393,6 +470,7 @@ static void _doDisconect(void)
     {
         LOGD("Start disconnecting. ");
         int result = WPL_Leave();
+
         if (result == WPL_SUCCESS)
         {
             _setWiFiState(kWiFi_State_Disconnected);
@@ -405,7 +483,7 @@ static void _doDisconect(void)
     }
     else
     {
-        LOGD("No network to disconnect from.");
+        LOGI("No network to disconnect from.");
     }
 }
 
@@ -418,10 +496,11 @@ static void _doDisconect(void)
 static void _doConnect(wifi_cred_t wifiCred)
 {
     /* Try to connect */
-    if (s_WiFiState == kWiFi_State_Disconnected)
+    if ((s_WiFiState == kWiFi_State_Disconnected) || (s_WiFiState == kWiFi_State_DisconnectedAsync))
     {
         LOGD("Start connect.");
         int result = WPL_Join((char *)wifiCred.ssid.value, (char *)wifiCred.password.value);
+
         if (result != WPL_SUCCESS)
         {
             fwk_message_t *pWiFiJoinMsg;
@@ -432,11 +511,14 @@ static void _doConnect(wifi_cred_t wifiCred)
         else
         {
             _setWiFiState(kWiFi_State_Connected);
+#if ENABLE_OTA
+            vTaskResume(s_otaTaskHandler);
+#endif /* ENABLE_OTA */
         }
     }
     else
     {
-        LOGD("State is not disconnected no need to do connect.");
+        LOGD("State is %d no need to do connect.", s_WiFiState);
     }
 }
 
@@ -445,6 +527,7 @@ static int _HAL_InputDev_WiFiAWAM510_Init(fwk_task_data_t *arg)
     LOGD("Starting WiFi \r\n");
 
     _doInit();
+
     if (WiFi_GetState() == kWiFi_On)
     {
         if (s_WiFiState == kWiFi_State_Disconnected)
@@ -462,10 +545,14 @@ static int _HAL_InputDev_WiFiAWAM510_Init(fwk_task_data_t *arg)
 
     if (WiFi_CredentialsPresent())
     {
-        WiFi_GetCredentials(&s_WiFiCred);
+        if (WiFi_GetCredentials(&s_WiFiCred) != kStatus_Success)
+        {
+            return -1;
+        }
     }
     else
     {
+        LOGD("WiFi state is provisioning.");
         _setWiFiState(kWiFi_State_Provisioning);
     }
 
@@ -489,6 +576,11 @@ static void _HAL_InputDev_WiFiAWAM510_MessageHandler(fwk_message_t *pMsg, fwk_ta
             {
                 LOGD("WiFi state is off");
             }
+        }
+        break;
+        case kWiFi_Leave:
+        {
+            _doDisconect();
         }
         break;
         case kWiFi_Credentials:
@@ -517,7 +609,6 @@ static void _HAL_InputDev_WiFiAWAM510_MessageHandler(fwk_message_t *pMsg, fwk_ta
             }
         }
         break;
-
         case kWiFi_Reset:
         {
             if (WiFi_GetState() == kWiFi_On)
@@ -547,6 +638,31 @@ static void _HAL_InputDev_WiFiAWAM510_MessageHandler(fwk_message_t *pMsg, fwk_ta
             }
         }
         break;
+        case kWiFi_Scan:
+        {
+            char *scan_result;
+            if (pMsg->payload.data != NULL)
+            {
+                int (*s_DelayResponseCallback)(uint32_t, void *, event_status_t, unsigned char) = pMsg->payload.data;
+                s_DelayResponseCallback(kEventID_WiFiScan, (void *)1, kEventStatus_NonBlocking, false);
+                if (WPL_Scan() == 0)
+                {
+                    scan_result = WPL_getSSIDs();
+                    s_DelayResponseCallback(kEventID_WiFiScan, scan_result, kEventStatus_Ok, true);
+                }
+                else
+                {
+                    s_DelayResponseCallback(kEventID_WiFiScan, (void *)1, kEventStatus_Error, true);
+                }
+            }
+            else
+            {
+                WPL_Scan();
+            }
+        }
+        break;
+
+#if ENABLE_FTP_CLIENT
         case kWiFi_FTPClient:
         {
             if (s_WiFiState == kWiFi_State_Connected)
@@ -575,29 +691,8 @@ static void _HAL_InputDev_WiFiAWAM510_MessageHandler(fwk_message_t *pMsg, fwk_ta
             }
         }
         break;
-        case kWiFi_Scan:
-        {
-            char *scan_result;
-            if (pMsg->raw.data != NULL)
-            {
-                int (*s_DelayResponseCallback)(uint32_t, void *, event_status_t, unsigned char) = pMsg->raw.data;
-                s_DelayResponseCallback(kEventID_WiFiScan, (void *)1, kEventStatus_NonBlocking, false);
-                if (WPL_Scan() == 0)
-                {
-                    scan_result = WPL_getSSIDs();
-                    s_DelayResponseCallback(kEventID_WiFiScan, scan_result, kEventStatus_Ok, true);
-                }
-                else
-                {
-                    s_DelayResponseCallback(kEventID_WiFiScan, (void *)1, kEventStatus_Error, true);
-                }
-            }
-            else
-            {
-                WPL_Scan();
-            }
-        }
-        break;
+#endif /* ENABLE_FTP_CLIENT */
+
         default:
             break;
     }
@@ -606,7 +701,7 @@ static void _HAL_InputDev_WiFiAWAM510_MessageHandler(fwk_message_t *pMsg, fwk_ta
 static hal_input_status_t HAL_InputDev_WiFiAWAM510_Init(input_dev_t *dev, input_dev_callback_t callback)
 {
     hal_input_status_t error = kStatus_HAL_InputSuccess;
-    BOARD_InitWIFIAW_AM510Resource();
+
     s_InputDev_WiFiAWAM510.cap.callback = callback;
 
     if (WiFi_LoadCredentials() == kStatus_Success)
@@ -640,7 +735,7 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_Init(input_dev_t *dev, input_
         LOGE("Failed to initialize the WiFi.");
         error = kStatus_HAL_InputError;
     }
-
+#if ENABLE_FTP_CLIENT
     if (error == kStatus_HAL_InputSuccess)
     {
         if (FTP_Init() != kStatus_Success)
@@ -651,6 +746,20 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_Init(input_dev_t *dev, input_
             error        = kStatus_HAL_InputError;
         }
     }
+#endif /* ENABLE_FTP_CLIENT */
+#if ENABLE_OTA
+    if (error == kStatus_HAL_InputSuccess)
+    {
+        if (xTaskCreate(ota_task, "RunOtaCoreMqttDemo", democonfigDEMO_STACKSIZE, NULL, (WIFI_TASK_PRIORITY),
+                        &s_otaTaskHandler) != pdPASS)
+        {
+            LOGE("Failed to create ota_task.");
+            vEventGroupDelete(s_WiFiEvents);
+            error        = kStatus_HAL_InputError;
+            s_WiFiEvents = NULL;
+        }
+    }
+#endif /* ENABLE_OTA */
 
     return error;
 }
@@ -667,13 +776,13 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_Start(const input_dev_t *dev)
     LOGD("++HAL_InputDev_WiFiAWAM510_start");
 
     /* Create the main Task */
-    s_WiFiTask.msgHandle  = _HAL_InputDev_WiFiAWAM510_MessageHandler;
-    s_WiFiTask.taskInit   = _HAL_InputDev_WiFiAWAM510_Init;
-    s_WiFiTask.data       = (void *)&s_InputDev_WiFiAWAM510;
-    s_WiFiTask.taskId     = kAppTaskID_WiFi;
-    s_WiFiTask.delayMs    = 1;
-    s_WiFiTask.taskStack  = s_WiFiTaskStack;
-    s_WiFiTask.taskBuffer = s_WiFiTaskTCBBReference;
+    s_WiFiTask.task.msgHandle  = _HAL_InputDev_WiFiAWAM510_MessageHandler;
+    s_WiFiTask.task.taskInit   = _HAL_InputDev_WiFiAWAM510_Init;
+    s_WiFiTask.task.data       = (fwk_task_data_t *)&(s_WiFiTask.data);
+    s_WiFiTask.task.taskId     = kAppTaskID_WiFi;
+    s_WiFiTask.task.delayMs    = 1;
+    s_WiFiTask.task.taskStack  = s_WiFiTaskStack;
+    s_WiFiTask.task.taskBuffer = s_WiFiTaskTCBBReference;
     FWK_Task_Start((fwk_task_t *)&s_WiFiTask, WIFI_TASK_NAME, WIFI_TASK_STACK, WIFI_TASK_PRIORITY);
 
     LOGD("--HAL_InputDev_WiFiAWAM510_start");
@@ -729,9 +838,21 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_InputNotify(const input_dev_t
         case kEventID_WiFiGetCredentials:
         {
             wifi_event_t wifiEvent = ((event_common_t *)param)->wifi;
+            status_t status        = WiFi_GetCredentials(&wifiEvent.wifiCred);
+
+            if (kStatus_Success == status)
+            {
+                LOGD("WiFi Credentials SSID %s PASS %s.", wifiEvent.wifiCred.ssid.value,
+                     wifiEvent.wifiCred.password.value);
+            }
+            else
+            {
+                LOGE("Failed to get credentials");
+            }
+
             if (eventBase.respond != NULL)
             {
-                if (WiFi_GetCredentials(&wifiEvent.wifiCred) == kStatus_Success)
+                if (kStatus_Success == status)
                 {
                     eventBase.respond(eventBase.eventId, &wifiEvent, kEventStatus_Ok, true);
                 }
@@ -784,7 +905,7 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_InputNotify(const input_dev_t
             {
                 pWiFiScanCredMsg->id                = kWiFi_Scan;
                 pWiFiScanCredMsg->freeAfterConsumed = true;
-                pWiFiScanCredMsg->raw.data          = (void *)eventBase.respond;
+                pWiFiScanCredMsg->payload.data      = (void *)eventBase.respond;
                 FWK_Message_Put(kAppTaskID_WiFi, &pWiFiScanCredMsg);
             }
             else
@@ -815,6 +936,7 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_InputNotify(const input_dev_t
                         pWiFiSetStateMsg->id                = kWiFi_StateChange;
                         pWiFiSetStateMsg->freeAfterConsumed = true;
                         FWK_Message_Put(kAppTaskID_WiFi, &pWiFiSetStateMsg);
+                        LOGD("WiFi state set with success");
                     }
                     else
                     {
@@ -824,6 +946,7 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_InputNotify(const input_dev_t
                 }
                 else
                 {
+                    LOGE("WiFi set state failed");
                     eventStatus = kEventStatus_Error;
                 }
             }
@@ -837,9 +960,11 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_InputNotify(const input_dev_t
         case kEventID_WiFiGetState:
         {
             wifi_event_t wifiEvent = ((event_common_t *)param)->wifi;
+            wifiEvent.state        = WiFi_GetState();
+
+            LOGD("WiFi state is %s.", (wifiEvent.state == kWiFi_On) ? "On" : "Off");
             if (eventBase.respond != NULL)
             {
-                wifiEvent.state = WiFi_GetState();
                 eventBase.respond(eventBase.eventId, &wifiEvent, kEventStatus_Ok, true);
             }
         }
@@ -867,12 +992,16 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_InputNotify(const input_dev_t
             _getIPAddress(ip);
             wifiEvent.ip = ip;
 
+            LOGD("WiFi IP is %s", ip);
+
             if (eventBase.respond != NULL)
             {
                 eventBase.respond(eventBase.eventId, &wifiEvent, kEventStatus_Ok, true);
             }
         }
         break;
+
+#ifdef ENABLE_FTP_CLIENT
         case kEventID_FTPSetServerInfo:
         {
             wifi_event_t wifiEvent     = ((event_common_t *)param)->wifi;
@@ -994,6 +1123,7 @@ static hal_input_status_t HAL_InputDev_WiFiAWAM510_InputNotify(const input_dev_t
         {
         }
         break;
+#endif /* ENABLE_FTP_CLIENT */
         default:
             break;
     }
@@ -1044,6 +1174,7 @@ static hal_output_status_t HAL_OutputDev_WiFiAWAM510_InferenceComplete(const out
 
     if (visionAlgoResult != NULL)
     {
+#ifdef ENABLE_FTP_CLIENT
         if (visionAlgoResult->id == kVisionAlgoID_H264Recording)
         {
             recordingState = (visionAlgoResult->h264Recording.state);
@@ -1067,6 +1198,7 @@ static hal_output_status_t HAL_OutputDev_WiFiAWAM510_InferenceComplete(const out
             }
             s_LastRecordingState = recordingState;
         }
+#endif /* ENABLE_FTP_CLIENT */
     }
 
     return status;
@@ -1077,14 +1209,14 @@ static hal_output_status_t HAL_OutputDev_WiFiAWAM510_InputNotify(const output_de
     return status;
 }
 
-static int HAL_OutputDev_WiFiAWAM510_Register(void)
+int HAL_OutputDev_WiFiAWAM510_Register(void)
 {
     int error = 0;
     error     = FWK_OutputManager_DeviceRegister(&s_OutputDev_WiFiAWAM510);
     return error;
 }
 
-static int HAL_InputDev_WiFiAWAM510_Register(void)
+int HAL_InputDev_WiFiAWAM510_Register(void)
 {
     int error = 0;
     error     = FWK_InputManager_DeviceRegister(&s_InputDev_WiFiAWAM510);

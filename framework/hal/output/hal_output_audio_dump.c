@@ -27,6 +27,8 @@
 #include "virtual_com.h"
 #include "fwk_log.h"
 
+static char s_audioDumpHelp[] = "Audio Dump Commands:\r\n  s - start\r\n  c - cancel\r\n\r\n";
+
 /* Line coding of cdc device */
 USB_DMA_INIT_DATA_ALIGN(USB_DATA_ALIGN_SIZE)
 static uint8_t s_lineCoding[LINE_CODING_SIZE] = {
@@ -61,13 +63,21 @@ extern usb_device_endpoint_struct_t g_cdcVcomDicEndpoints_2[];
 extern usb_device_endpoint_struct_t g_cdcVcomCicEndpoints_2[];
 extern usb_device_class_struct_t g_UsbDeviceCdcVcomConfig[];
 
+typedef enum _captureStatus
+{
+    CAPUTRE_STOP,
+    CAPTURE_START,
+    CAPUTER_UNKNOWN
+} captureStatus_t;
+
 /*******************************************************************************
  * Variables
  ******************************************************************************/
 static serial_usb_cdc_state_t s_UsbDeviceCDC;
 
 static uint8_t s_has_finished = 1;
-static uint8_t u8StartCapture = 0;
+
+static captureStatus_t startCapture = CAPUTRE_STOP;
 
 static usb_status_t USB_DeviceCdcVcomCallback(class_handle_t handle, uint32_t event, void *param)
 {
@@ -116,13 +126,29 @@ static usb_status_t USB_DeviceCdcVcomCallback(class_handle_t handle, uint32_t ev
             {
                 s_UsbDeviceCDC.recvSize = epCbParam->length;
 
-                if ((0 != s_UsbDeviceCDC.recvSize) && (0xFFFFFFFF != s_UsbDeviceCDC.recvSize))
+                if (s_UsbDeviceCDC.recvSize == 1)
                 {
                     /* It may be friendly to check user input here */
-                    u8StartCapture = 1;
+                    if (s_UsbDeviceCDC.currRecvBuf[0] == 's')
+                    {
+                        startCapture = CAPTURE_START;
+                    }
+                    else if (s_UsbDeviceCDC.currRecvBuf[0] == 'c')
+                    {
+                        startCapture = CAPUTRE_STOP;
+                    }
+                    else if (s_UsbDeviceCDC.currRecvBuf[0] == '\r')
+                    {
+                        USB_DeviceCdcAcmSend(s_UsbDeviceCDC.cdcAcmHandle, s_UsbDeviceCDC.bulkInEndpoint,
+                                             s_audioDumpHelp, strlen(s_audioDumpHelp));
+                    }
+                    else
+                    {
+                        startCapture = CAPUTER_UNKNOWN;
+                    }
                 }
 
-                if (!s_UsbDeviceCDC.recvSize)
+                if (s_UsbDeviceCDC.recvSize)
                 {
                     /* Schedule buffer for next receive event */
                     error = USB_DeviceCdcAcmRecv(handle, s_UsbDeviceCDC.bulkOutEndpoint, s_UsbDeviceCDC.currRecvBuf,
@@ -280,6 +306,7 @@ static usb_status_t USB_DeviceCdcVcomCallback(class_handle_t handle, uint32_t ev
                 {
                     s_has_finished                   = 1;
                     s_UsbDeviceCDC.startTransactions = 0;
+                    startCapture                     = CAPUTRE_STOP;
                 }
             }
         }
@@ -331,6 +358,7 @@ static usb_status_t USB_DeviceCdcVcomSetConfigure(class_handle_t handle, uint8_t
  */
 static usb_status_t USB_DeviceCdcVcomInit()
 {
+    s_UsbDeviceCDC.instance      = CONTROLLER_ID;
     s_UsbDeviceCDC.lineCoding    = (uint8_t *)s_lineCoding;
     s_UsbDeviceCDC.abstractState = (uint8_t *)s_abstractState;
     s_UsbDeviceCDC.countryCode   = (uint8_t *)s_countryCode;
@@ -419,8 +447,8 @@ static usb_status_t USB_DeviceCallback(usb_device_handle handle, uint32_t event,
 
 hal_output_status_t audio_dump(const output_dev_t *dev, void *data)
 {
-    audio_msg_payload_t *paudio_msg = (audio_msg_payload_t *)data;
-    if (u8StartCapture == 1)
+    msg_payload_t *paudio_msg = (msg_payload_t *)data;
+    if (startCapture == CAPTURE_START)
     {
         USB_DeviceCdcAcmSend(s_UsbDeviceCDC.cdcAcmHandle, s_UsbDeviceCDC.bulkInEndpoint, paudio_msg->data,
                              paudio_msg->size);
@@ -460,6 +488,7 @@ hal_output_status_t audio_dump_start(const output_dev_t *dev)
     else
     {
         USB_DeviceIsrEnable();
+        vTaskDelay(200);
         USB_DeviceRun(s_UsbDeviceCDC.deviceHandle);
     }
 

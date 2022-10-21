@@ -27,6 +27,7 @@
 #include "fwk_lpm_manager.h"
 
 #include "hal_input_dev.h"
+#include "hal_event_descriptor_common.h"
 
 #define INPUT_DEV_PB_WAKE_GPIO        BOARD_USER_BUTTON_GPIO
 #define INPUT_DEV_PB_WAKE_GPIO_PIN    BOARD_USER_BUTTON_GPIO_PIN
@@ -43,7 +44,7 @@
 
 #define DEBOUNCE_TIME_MS      10
 #define LONG_PRESS_TIMEOUT_MS 1500
-#define BLOCKING_TIME_MS      2000
+#define BLOCKING_TIME_MS      INPUT_DEV_PUSH_BUTTON_INTERVAL_MS
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -140,10 +141,8 @@ static TimerHandle_t blockingTimer;
 static void _BlockingTimerCallback(TimerHandle_t xTimer);
 static void _ReleaseTimerCallback(TimerHandle_t xTimer);
 
-__attribute__((weak)) int APP_InputDev_PushButtons_SetEvent(switch_id_t button,
-                                                            switch_press_type_t pressType,
-                                                            void **event,
-                                                            uint32_t *receiverList)
+__attribute__((weak)) int APP_InputDev_PushButtons_SetEvent(
+    switch_id_t button, switch_press_type_t pressType, void **event, uint32_t *receiverList, uint32_t *size)
 {
     LOGI(
         "No handlers currently associated with push buttons. Override the \"%s\" function if this is not "
@@ -167,6 +166,8 @@ void _HAL_InputDev_IrqHandler(button_data_t *button, switch_press_type_t pressTy
             s_inputEvent.u.inputData.data         = s_pEvent;
             s_inputEvent.u.inputData.copy         = 0;
             s_inputEvent.u.inputData.receiverList = receiverList;
+            event_common_t *pEvent                = (event_common_t *)s_pEvent;
+            s_inputEvent.eventInfo                = pEvent->eventBase.eventInfo;
 
             uint8_t fromISR = __get_IPSR();
 

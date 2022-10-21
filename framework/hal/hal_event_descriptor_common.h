@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 NXP.
+ * Copyright 2020-2022 NXP.
  * This software is owned or controlled by NXP and may only be used strictly in accordance with the
  * license terms that accompany it. By expressly accepting such terms or by downloading, installing,
  * activating and/or otherwise using the software, you are agreeing that you have read, and that you
@@ -14,11 +14,16 @@
 #ifndef _HAL_EVENT_DESCRIPTOR_COMMON_H_
 #define _HAL_EVENT_DESCRIPTOR_COMMON_H_
 
+#if defined(WIFI_ENABLED) && (WIFI_ENABLED == 1)
+#include "wifi_credentials.h"
+#endif /* WIFI_ENABLED */
+
 typedef enum _event_type
 {
     kEventType_Common  = 0x00,
     kEventType_FaceRec = 0x100,
     kEventType_Voice   = 0x200,
+    kEventType_App     = 0x300,
 } event_type_t;
 
 typedef enum _event_id
@@ -40,7 +45,7 @@ typedef enum _event_id
     kEventID_GetBLEConnection,
 
 /* TODO create more permanent solution for event descriptors */
-#if defined(WIFI_ENABLED) && WIFI_ENABLED == 1
+#if defined(WIFI_ENABLED) && (WIFI_ENABLED == 1)
     kEventID_WiFiEraseCredentials,
     kEventID_WiFiSetCredentials,
     kEventID_WiFiGetCredentials,
@@ -50,7 +55,13 @@ typedef enum _event_id
     kEventID_WiFiReset,
     kEventID_WiFiGetIP,
     kEventID_WiFiConnected,
+#endif /* WIFI_ENABLED */
 
+    kEventID_OTAStart,
+    kEventID_OTAStop,
+    kEventID_OTAStatus,
+
+#if defined(ENABLE_FTP_CLIENT) && (ENABLE_FTP_CLIENT == 1)
     kEventID_FTPSetServerInfo,
     kEventID_FTPGetServerInfo,
     kEventID_FTPSetServerIP,
@@ -59,7 +70,7 @@ typedef enum _event_id
     kEventID_FTPGetServerPort,
     kEventID_FTPSetServerAuth,
     kEventID_FTPGetServerAuth,
-#endif /* defined(WIFI_ENABLED) && WIFI_ENABLED == 1 */
+#endif /* ENABLE_FTP_CLIENT */
 
     kEventID_SetLogLevel,
     kEventID_GetLogLevel,
@@ -75,7 +86,15 @@ typedef enum _event_id
     kEventID_RecordingState,
     kEventID_RecordingInfo,
 
-	kEventID_PlayPrompt,
+    kEventID_PlayPrompt,
+    kEventID_PlayPromptDone,
+
+    kEventID_StopPrompt,
+
+    kEventID_SessionTimeout,
+    kEventID_WakeUp,
+    kEventID_Standby,
+    kEventID_Sleep,
 
     kEventID_LastCommon
 } event_id_t;
@@ -91,6 +110,7 @@ typedef enum _event_status
 typedef struct _event_base
 {
     uint32_t eventId;
+    uint32_t eventInfo;
     int (*respond)(uint32_t event_id, void *response, event_status_t status, unsigned char isFinished);
 } event_base_t;
 
@@ -158,8 +178,9 @@ typedef struct _wifi_event_t
     union
     {
         char *ip;
-        char *ftpServerInfoSerialized;
         uint8_t isConnected;
+        wifi_state_t state;
+        wifi_cred_t wifiCred;
     };
 
 } wifi_event_t;
@@ -186,6 +207,17 @@ typedef struct _event_recording_t
     recording_state_t state;
 } event_recording_t;
 
+typedef struct _ota_event
+{
+    uint8_t percentage;
+} ota_event_t;
+
+typedef struct _prompt_event
+{
+    uint32_t id;
+    uint8_t asrEnabled;
+} prompt_event_t;
+
 typedef struct _event_common
 {
     event_base_t eventBase;
@@ -197,6 +229,9 @@ typedef struct _event_common
 #if defined(WIFI_ENABLED) && WIFI_ENABLED == 1
         wifi_event_t wifi;
 #endif /* defined(WIFI_ENABLED) && WIFI_ENABLED == 1 */
+
+        ota_event_t otaStatus;
+        prompt_event_t promptInfo;
         log_level_event_t logLevel;
         display_output_event_t displayOutput;
         speaker_volume_event_t speakerVolume;

@@ -48,6 +48,7 @@ typedef enum _input_event_id
 typedef struct _input_event
 {
     input_event_id_t eventId;
+    uint32_t eventInfo;
     unsigned int size;
     union
     {

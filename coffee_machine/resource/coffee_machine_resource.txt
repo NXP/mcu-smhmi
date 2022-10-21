@@ -1,0 +1,81 @@
+// resource_build coffee_machine_resource.txt
+//
+//
+// coffee_machine_resource.txt format
+// each line for one file description
+//
+// type file_name
+//
+/*
+image ../../coffee_machine/resource/images/_Americano_Black_120x120.c
+image ../../coffee_machine/resource/images/_Americano_Selected_Black_120x120.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf01.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf03.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf05.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf07.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf09.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf11.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf13.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf15.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf17.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf19.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf21.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf23.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf25.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf27.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf29.c
+image ../../coffee_machine/resource/images/brewing_animimg_brewingf31.c
+image ../../coffee_machine/resource/images/_Cafe_Latte_Black_120x120.c
+image ../../coffee_machine/resource/images/_Cafe_Latte_Selected_Black_120x120.c
+image ../../coffee_machine/resource/images/_Cappuccinno_Black_120x120.c
+image ../../coffee_machine/resource/images/_Cappuccinno_selected_Black_120x120.c
+image ../../coffee_machine/resource/images/_Espresso_Black_120x120.c
+image ../../coffee_machine/resource/images/_Espresso_Selected_Black_120x120.c
+image ../../coffee_machine/resource/images/finished_animimg_americanoAmericano_Selected_Black.c
+image ../../coffee_machine/resource/images/finished_animimg_cafelatteCafe_Latte_Selected_Black.c
+image ../../coffee_machine/resource/images/finished_animimg_cappccinoCappuccinno_selected_Black.c
+image ../../coffee_machine/resource/images/finished_animimg_espressoEspresso_Selected_Black.c
+image ../../coffee_machine/resource/images/main_animimg_timeoutmain_rb_10_10.c
+image ../../coffee_machine/resource/images/_main_coffee_machine_1280x720.c
+image ../../coffee_machine/resource/images/_nxp_face_rec_300x80.c
+image ../../coffee_machine/resource/images/_nxp_voice_rec_300x80.c
+image ../../coffee_machine/resource/images/_Selection_80x60.c
+image ../../coffee_machine/resource/images/_Selection_Selected_80x60.c
+image ../../coffee_machine/resource/images/screen_animimg_screensaver01.c
+image ../../coffee_machine/resource/images/screen_animimg_screensaver02.c
+image ../../coffee_machine/resource/images/screen_animimg_screensaver03.c
+image ../../coffee_machine/resource/images/screen_animimg_screensaver04.c
+image ../../coffee_machine/resource/images/screen_animimg_screensaver05.c
+image ../../coffee_machine/resource/images/screen_animimg_screensaver06.c
+image ../../coffee_machine/resource/images/screen_animimg_screensaver07.c
+image ../../coffee_machine/resource/images/screen_animimg_screensaver08.c
+image ../../coffee_machine/resource/images/_Start_Black_Reshaped_270x120.c
+image ../../coffee_machine/resource/images/_unregister_75x75.c
+icon ../../coffee_machine/resource/icons/process_bar_240x14.h
+icon ../../coffee_machine/resource/icons/virtual_face_blue_420x426.h
+icon ../../coffee_machine/resource/icons/virtual_face_green_420x426.h
+icon ../../coffee_machine/resource/icons/virtual_face_red_420x426.h
+sound ../../coffee_machine/resource/sounds/common/confirm_tone.h
+sound ../../coffee_machine/resource/sounds/common/tone_timeout.h
+sound ../../coffee_machine/resource/sounds/en/another_espresso_en.h
+sound ../../coffee_machine/resource/sounds/en/another_americano_en.h
+sound ../../coffee_machine/resource/sounds/en/another_cappuccino_en.h
+sound ../../coffee_machine/resource/sounds/en/another_latte_en.h
+sound ../../coffee_machine/resource/sounds/en/save_selection_en.h
+sound ../../coffee_machine/resource/sounds/cn/another_espresso_cn.h
+sound ../../coffee_machine/resource/sounds/cn/another_americano_cn.h
+sound ../../coffee_machine/resource/sounds/cn/another_cappuccino_cn.h
+sound ../../coffee_machine/resource/sounds/cn/another_latte_cn.h
+sound ../../coffee_machine/resource/sounds/cn/save_selection_cn.h
+sound ../../coffee_machine/resource/sounds/fr/another_espresso_fr.h
+sound ../../coffee_machine/resource/sounds/fr/another_americano_fr.h
+sound ../../coffee_machine/resource/sounds/fr/another_cappuccino_fr.h
+sound ../../coffee_machine/resource/sounds/fr/another_latte_fr.h
+sound ../../coffee_machine/resource/sounds/fr/register_selection_fr.h
+sound ../../coffee_machine/resource/sounds/de/another_espresso_de.h
+sound ../../coffee_machine/resource/sounds/de/another_americano_de.h
+sound ../../coffee_machine/resource/sounds/de/another_cappuccino_de.h
+sound ../../coffee_machine/resource/sounds/de/another_latte_de.h
+sound ../../coffee_machine/resource/sounds/de/register_selection_de.h
+*/
+

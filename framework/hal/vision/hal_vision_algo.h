@@ -14,6 +14,8 @@
 #ifndef _HAL_VISION_ALGO_H_
 #define _HAL_VISION_ALGO_H_
 
+#include "board_define.h"
+
 #include "hal_event_descriptor_common.h"
 
 #include "hal_sln_facedb.h"
@@ -30,16 +32,6 @@
 #endif
 
 #define OASIS_RUN_FLAG_STOP            (OASIS_RUN_FLAG_NUM + 1)
-#define OASIS_RGB_FRAME_WIDTH          480
-#define OASIS_RGB_FRAME_HEIGHT         640
-#define OASIS_RGB_FRAME_BYTE_PER_PIXEL 3
-
-#define OASIS_IR_FRAME_WIDTH          480
-#define OASIS_IR_FRAME_HEIGHT         640
-#define OASIS_IR_FRAME_BYTE_PER_PIXEL 3
-
-#define OASIS_FRAME_WIDTH  540
-#define OASIS_FRAME_HEIGHT 640
 
 #define OASIS_DETECT_MIN_FACE 100
 #ifndef OASIS_STATIC_MEM_BUFFER
@@ -107,9 +99,11 @@ typedef enum _oasis_lite_deregistration_result
 typedef enum _oasis_lite_quality_check_result
 {
     kOasisLiteQualityCheck_Ok,
-    kOasisLiteQualityCheck_FakeFace,
-    kOasisLiteQualityCheck_NonFrontalFace,
+    kOasisLiteQualityCheck_SmallFace,
     kOasisLiteQualityCheck_Blurry,
+    kOasisLiteQualityCheck_SideFace,
+    kOasisLiteQualityCheck_Brightness,
+    kOasisLiteQualityCheck_FakeFace,
     kOasisLiteQualityCheck_Count
 } oasis_lite_quality_check_result_t;
 
@@ -145,10 +139,11 @@ typedef struct _oasis_lite_debug
     /* the face id with this sim value */
     uint32_t faceID;
     uint8_t isOk;
-    uint8_t is3dFake;
-    uint8_t is2dFake;
+    uint8_t isSmallFace;
     uint8_t isBlurry;
     uint8_t isSideFace;
+    uint8_t is2dFake;
+    uint8_t is3dFake;
     uint8_t hasMask;
     uint8_t hasGlasses;
     uint8_t irBrightness;
@@ -169,15 +164,10 @@ typedef struct _oasis_lite_result
     int face_id;
     char name[FACE_NAME_MAX_LEN];
 
-    /* TODO: need to define specific vision algorithm result for specific app */
-    uint8_t coffee_type;
-    uint8_t coffee_size;
-    uint8_t coffee_strength;
-
     /* quality check results */
     oasis_lite_quality_check_result_t qualityCheck;
 
-    // registration result
+    /* registration result */
     union
     {
         uint32_t result;
@@ -190,6 +180,10 @@ typedef struct _oasis_lite_result
     uint8_t headless_reg_status;
 #endif
     oasis_lite_debug_t debug_info;
+
+    /* the maximum user data set to 32 bytes,
+     * need to update if more than 32 bytes.*/
+    uint8_t userData[32];
 } oasis_lite_result_t;
 
 // h264 algorithm result

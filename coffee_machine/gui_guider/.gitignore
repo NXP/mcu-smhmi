@@ -1,0 +1,5 @@
+lvgl-simulator/*
+lvgl/*
+temp/*
+deploy/*
+generated/*

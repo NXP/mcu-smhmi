@@ -1,0 +1,27 @@
+# Copyright 2022 NXP
+# NXP Confidential. This software is owned or controlled by NXP and may only
+# be used strictly in accordance with the applicable license terms found in
+# file LICENSE.txt
+
+ID:       0f343b80-c511-11ec-9af8-a9c070b1cb7d
+Builder:  2022.0.1
+SDK:      2.11
+Language: Mandarin
+Platform: RT1060
+Lexicon:  default
+
+Wakeword: 你好恩智浦
+# Format:  <word> [<penalty>]
+Commands:
+    开始 [0]
+    取消 [0]
+    确定 [0]
+    完成 [0]
+    意式 咖啡 [0]
+    美式 咖啡 [0]
+    卡布奇诺 [0]
+    小杯 [0]
+    大杯 [0]
+    温和 [0]
+    浓烈 [0]
+    取消 注册 [0]

@@ -57,7 +57,8 @@ typedef enum _fwk_message_id
 
     /* raw message which is determined by the sender and receiver */
     kFWKMessageID_Raw,
-
+    /* audio streams dump message AFE triggering */
+    kFWKMessageID_AudioDump,
     kFWKMessageID_Invalid,
 
 } fwk_message_id_t;
@@ -65,7 +66,6 @@ typedef enum _fwk_message_id
 /*! @brief Structure of a frame request message */
 typedef struct
 {
-    int devId;
     /* frame buffer width, height, pitch */
     int height;
     int width;
@@ -84,17 +84,7 @@ typedef struct
     pixel_format_t format;
     /* the source pixel format of the requested frame */
     pixel_format_t srcFormat;
-    void *data;
 } frame_msg_payload_t;
-
-/*! @brief Structure of a raw message used to send various data */
-typedef struct
-{
-    int devId;
-    unsigned char freeAfterConsumed;
-    void *data;
-    unsigned int size;
-} raw_msg_payload_t;
 
 /*! @brief Structure of a graphics message */
 typedef struct
@@ -105,28 +95,40 @@ typedef struct
 /*! @brief Structure of an input message */
 typedef struct
 {
-    int devId;
     unsigned char copy;
     unsigned int receiverList;
-    unsigned int length;
-    void *data;
-
 } input_msg_payload_t;
 
-/*! @brief Structure of an audio message */
-typedef struct
+typedef enum _msg_info
 {
-    int devId;
-    unsigned int size;
-    void *data;
-} audio_msg_payload_t;
+    kMsgInfo_DualCore = 0, /* default */
+    kMsgInfo_Local,
+    kMsgInfo_Remote,
+    kMsgInfo_Invalid
+} msg_info_t;
 
 typedef struct _multicore_info
 {
     unsigned char isMulticoreMessage;
+    unsigned char wasMulticoreMessage;
     /* Manager to which the message needs to be send on the other core*/
     fwk_task_id_t taskId;
 } multicore_info_t;
+
+typedef struct
+{
+    int devId;
+    unsigned char freeAfterConsumed;
+    void *data;
+    unsigned int size;
+    union
+    {
+        frame_msg_payload_t frame;
+        input_msg_payload_t input;
+        overlay_msg_payload_t overlay;
+        framework_request_t frameworkRequest;
+    };
+} msg_payload_t;
 
 /*! @brief General structure of a message */
 typedef struct
@@ -136,16 +138,8 @@ typedef struct
 #if FWK_SUPPORT_MULTICORE
     multicore_info_t multicore;
 #endif /* FWK_SUPPORT_MULTICORE */
-
-    union
-    {
-        frame_msg_payload_t frame;
-        input_msg_payload_t input;
-        audio_msg_payload_t audio;
-        overlay_msg_payload_t overlay;
-        raw_msg_payload_t raw;
-        framework_request_t frameworkRequest;
-    };
+    msg_info_t msgInfo;
+    msg_payload_t payload;
 } fwk_message_t;
 
 /**

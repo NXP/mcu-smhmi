@@ -23,7 +23,6 @@ typedef enum _event_face_rec_id
 {
     kEventFaceRecID_AddUser = kEventType_FaceRec,
     kEventFaceRecID_AddUserRemote,
-    kEventFaceRecId_RegisterCoffeeSelection,
     kEventFaceRecID_DelUser,
     kEventFaceRecID_DelUserAll,
     kEventFaceRecID_GetUserList,
@@ -39,6 +38,8 @@ typedef enum _event_face_rec_id
 
     kEventFaceRecID_OasisSetState,
     kEventFaceRecID_OasisGetState,
+
+    kEventFaceRecID_OasisDebugOption,
 
     kEventFaceRecID_COUNT
 } event_face_rec_id_t;
@@ -71,14 +72,6 @@ typedef struct _add_face_event
     char name[FACE_NAME_MAX_LEN];
     bool hasName;
 } add_face_event_t;
-
-typedef struct _register_coffee_selection_event
-{
-    uint16_t id;
-    uint8_t coffee_type;
-    uint8_t coffee_size;
-    uint8_t coffee_strength;
-} register_coffee_selection_event_t;
 
 typedef struct _del_face_event
 {
@@ -139,7 +132,6 @@ typedef struct _event_face_rec
     {
         void *data;
         add_face_event_t addFace;
-        register_coffee_selection_event_t regCoffeeSelection;
         del_face_event_t delFace;
         update_user_event_t updateFace;
         remote_reg_event_t remoteReg;

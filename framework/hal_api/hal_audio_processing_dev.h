@@ -37,22 +37,36 @@
 typedef struct _audio_processing_dev audio_processing_dev_t;
 
 /*! @brief Type of events that are supported by calling the callback function */
-typedef enum _audio_processing_event
+typedef enum _audio_processing_event_id
 {
     kAudioProcessingEvent_Done,
     kAudioProcessingEvent_Dump,
+} audio_processing_event_id_t;
+
+/*! @brief Structure used to define an event.*/
+typedef struct _audio_processing_event
+{
+    /* Eventid from the list above.*/
+    audio_processing_event_id_t eventId;
+    event_info_t eventInfo;
+    /* Pointer to a struct of data that needs to be forwarded. */
+    void *data;
+    /* Size of the struct that needs to be forwarded. */
+    unsigned int size;
+    /* If copy is set to 1, the framework will forward a copy of the data. */
+    unsigned char copy;
 } audio_processing_event_t;
 
 /**
  * @brief Callback function to notify audio processing manager that an async event took place
  * @param dev Device structure of the audio processing device calling this function
  * @param event id of the event that took place
- * @param param Parameters
  * @param fromISR True if this operation takes place in an irq, 0 otherwise
  * @return 0 if the operation was successfully
  */
-typedef int (*audio_processing_dev_callback_t)(
-    const audio_processing_dev_t *dev, audio_processing_event_t event, void *param, unsigned int size, uint8_t fromISR);
+typedef int (*audio_processing_dev_callback_t)(const audio_processing_dev_t *dev,
+                                               audio_processing_event_t event,
+                                               uint8_t fromISR);
 
 /*! @brief Error codes for audio processing hal devices */
 typedef enum _hal_audio_processing_status

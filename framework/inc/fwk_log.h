@@ -45,49 +45,118 @@ extern "C" {
 #define DEBUG_CONSOLE_UNLOCK()
 #endif
 
+#ifndef LOGISRV
+#define LOGISRV(fmt, args...)                              \
+    {                                                      \
+        if (FWK_Config_GetLogLevel() >= kLOGLevel_Verbose) \
+        {                                                  \
+            {                                              \
+                PRINTF(fmt, ##args);                       \
+                PRINTF("\r\n");                            \
+            }                                              \
+        }                                                  \
+    }
+#endif /* LOGISRV */
+
 #ifndef LOGV
-#define LOGV(fmt, args...)                                \
-    {                                                     \
-        if (FWK_ConfigGetLogLevel() >= kLOGLevel_Verbose) \
-        {                                                 \
-            {vLoggingPrintfInfo(fmt, ##args);}            \
-        }                                                 \
+#define LOGV(fmt, args...)                                 \
+    {                                                      \
+        if (FWK_Config_GetLogLevel() >= kLOGLevel_Verbose) \
+        {                                                  \
+            {                                              \
+                vLoggingPrintfInfo(fmt, ##args);           \
+            }                                              \
+        }                                                  \
     }
 #endif
 
+#ifndef LOGISRD
+#define LOGISRD(fmt, args...)                            \
+    {                                                    \
+        if (FWK_Config_GetLogLevel() >= kLOGLevel_Debug) \
+        {                                                \
+            {                                            \
+                PRINTF(fmt, ##args);                     \
+                PRINTF("\r\n");                          \
+            }                                            \
+        }                                                \
+    }
+#endif /* LOGISRD */
+
 #ifndef LOGD
-#define LOGD(fmt, args...)                              \
+#define LOGD(fmt, args...)                               \
+    {                                                    \
+        if (FWK_Config_GetLogLevel() >= kLOGLevel_Debug) \
+        {                                                \
+            {                                            \
+                vLoggingPrintfDebug(fmt, ##args);        \
+            }                                            \
+        }                                                \
+    }
+#endif
+
+#ifndef LOGISRI
+#define LOGISRI(fmt, args...)                           \
     {                                                   \
-        if (FWK_ConfigGetLogLevel() >= kLOGLevel_Debug) \
+        if (FWK_Config_GetLogLevel() >= kLOGLevel_Info) \
         {                                               \
-            {vLoggingPrintfDebug(fmt, ##args);}         \
+            {                                           \
+                PRINTF(fmt, ##args);                    \
+                PRINTF("\r\n");                         \
+            }                                           \
+        }                                               \
+    }
+#endif /* LOGISRI */
+
+#ifndef LOGI
+#define LOGI(fmt, args...)                              \
+    {                                                   \
+        if (FWK_Config_GetLogLevel() >= kLOGLevel_Info) \
+        {                                               \
+            {                                           \
+                vLoggingPrintfInfo(fmt, ##args);        \
+            }                                           \
         }                                               \
     }
 #endif
 
-#ifndef LOGI
-#define LOGI(fmt, args...)                             \
-    {                                                  \
-        if (FWK_ConfigGetLogLevel() >= kLOGLevel_Info) \
-        {                                              \
-            {vLoggingPrintfInfo(fmt, ##args);}         \
-        }                                              \
+#ifndef LOGISRE
+#define LOGISRE(fmt, args...)                                                       \
+    {                                                                               \
+        if (FWK_Config_GetLogLevel() >= kLOGLevel_Error)                            \
+        {                                                                           \
+            {                                                                       \
+                PRINTF("%s:%d: In function \"%s\":", __FILE__, __LINE__, __func__); \
+            }                                                                       \
+            {                                                                       \
+                PRINTF(fmt, ##args);                                                \
+                PRINTF("\r\n");                                                     \
+            }                                                                       \
+        }                                                                           \
     }
-#endif
+#endif /* LOGISRI */
 
 #ifndef LOGE
-#define LOGE(fmt, args...)                                                                     \
-    {                                                                                          \
-        if (FWK_ConfigGetLogLevel() >= kLOGLevel_Error)                                        \
-        {                                                                                      \
-            {vLoggingPrintfError("%s:%d: In function \"%s\":", __FILE__, __LINE__, __func__);} \
-            {vLoggingPrintfError(fmt, ##args);}                                                \
-        }                                                                                      \
+#define LOGE(fmt, args...)                                                                       \
+    {                                                                                            \
+        if (FWK_Config_GetLogLevel() >= kLOGLevel_Error)                                         \
+        {                                                                                        \
+            {                                                                                    \
+                vLoggingPrintfError("%s:%d: In function \"%s\":", __FILE__, __LINE__, __func__); \
+            }                                                                                    \
+            {                                                                                    \
+                vLoggingPrintfError(fmt, ##args);                                                \
+            }                                                                                    \
+        }                                                                                        \
     }
 #endif
 
 #else
 
+#define LOGISRV(...)
+#define LOGISRD(...)
+#define LOGISRI(...)
+#define LOGISRE(...)
 #define LOGV(...)
 #define LOGD(...)
 #define LOGI(...)

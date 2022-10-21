@@ -1,0 +1,104 @@
+// resource_build elevator_resource.txt
+//
+//
+// elevator_resource.txt format
+// each line for one file description
+//
+// type file_name
+//
+/*
+image ../../elevator/resource/images/_back_alpha_81x82.c
+image ../../elevator/resource/images/_button_call_alpha_90x90.c
+image ../../elevator/resource/images/_button_call_pressed_alpha_90x90.c
+image ../../elevator/resource/images/_button_close_alpha_90x90.c
+image ../../elevator/resource/images/_button_close_pressed_alpha_90x90.c
+image ../../elevator/resource/images/_button_delete_alpha_62x62.c
+image ../../elevator/resource/images/_button_delete_pressed_alpha_62x62.c
+image ../../elevator/resource/images/_button_gold_alpha_90x90.c
+image ../../elevator/resource/images/_button_gold_pressed_alpha_90x90.c
+image ../../elevator/resource/images/_button_open_alpha_90x90.c
+image ../../elevator/resource/images/_button_open_pressed_alpha_90x90.c
+image ../../elevator/resource/images/_button_silver_alpha_90x90.c
+image ../../elevator/resource/images/_button_silver_pressed_alpha_90x90.c
+image ../../elevator/resource/images/_home_background_1280x720.c
+image ../../elevator/resource/images/_home_cancel_264x139.c
+image ../../elevator/resource/images/_home_confirm_264x139.c
+image ../../elevator/resource/images/_home_date_cn_560x90.c
+image ../../elevator/resource/images/_home_date_de_560x90.c
+image ../../elevator/resource/images/_home_date_en_560x90.c
+image ../../elevator/resource/images/_home_date_fr_560x90.c
+image ../../elevator/resource/images/_home_help_91x91.c
+image ../../elevator/resource/images/_home_mic_off_61x111.c
+image ../../elevator/resource/images/_home_mic_on_118x197.c
+image ../../elevator/resource/images/_home_sun_128x135.c
+image ../../elevator/resource/images/_home_temp_262x95.c
+image ../../elevator/resource/images/_home_time_225x55.c
+image ../../elevator/resource/images/main_animimg_timeoutmain_rb_10_10.c
+image ../../elevator/resource/images/_main_elevator_1280x720.c
+image ../../elevator/resource/images/_nxp_logo_113x38.c
+image ../../elevator/resource/images/_up_64x56.c
+image ../../elevator/resource/images/_virtual_face_blue_180x185.c
+image ../../elevator/resource/images/_virtual_face_green_180x185.c
+image ../../elevator/resource/images/_virtual_face_red_180x185.c
+sound ../../elevator/resource/sounds/common/confirm_tone.h
+sound ../../elevator/resource/sounds/common/timeout_tone.h
+sound ../../elevator/resource/sounds/common/alarm_tone.h
+sound ../../elevator/resource/sounds/common/open_door_tone.h
+sound ../../elevator/resource/sounds/en/first_floor_en.h
+sound ../../elevator/resource/sounds/en/second_floor_en.h
+sound ../../elevator/resource/sounds/en/third_floor_en.h
+sound ../../elevator/resource/sounds/en/fourth_floor_en.h
+sound ../../elevator/resource/sounds/en/fifth_floor_en.h
+sound ../../elevator/resource/sounds/en/sixth_floor_en.h
+sound ../../elevator/resource/sounds/en/first_confirm_cancel_en.h
+sound ../../elevator/resource/sounds/en/second_confirm_cancel_en.h
+sound ../../elevator/resource/sounds/en/third_confirm_cancel_en.h
+sound ../../elevator/resource/sounds/en/fourth_confirm_cancel_en.h
+sound ../../elevator/resource/sounds/en/fifth_confirm_cancel_en.h
+sound ../../elevator/resource/sounds/en/sixth_confirm_cancel_en.h
+sound ../../elevator/resource/sounds/en/save_selection_en.h
+sound ../../elevator/resource/sounds/en/which_floor_en.h
+sound ../../elevator/resource/sounds/cn/floor_one_cn.h
+sound ../../elevator/resource/sounds/cn/floor_two_cn.h
+sound ../../elevator/resource/sounds/cn/floor_three_cn.h
+sound ../../elevator/resource/sounds/cn/floor_four_cn.h
+sound ../../elevator/resource/sounds/cn/floor_five_cn.h
+sound ../../elevator/resource/sounds/cn/floor_six_cn.h
+sound ../../elevator/resource/sounds/cn/one_confirm_cancel_cn.h
+sound ../../elevator/resource/sounds/cn/two_confirm_cancel_cn.h
+sound ../../elevator/resource/sounds/cn/three_confirm_cancel_cn.h
+sound ../../elevator/resource/sounds/cn/four_confirm_cancel_cn.h
+sound ../../elevator/resource/sounds/cn/five_confirm_cancel_cn.h
+sound ../../elevator/resource/sounds/cn/six_confirm_cancel_cn.h
+sound ../../elevator/resource/sounds/cn/save_selection_cn.h
+sound ../../elevator/resource/sounds/cn/which_floor_cn.h
+sound ../../elevator/resource/sounds/fr/first_floor_fr.h
+sound ../../elevator/resource/sounds/fr/second_floor_fr.h
+sound ../../elevator/resource/sounds/fr/third_floor_fr.h
+sound ../../elevator/resource/sounds/fr/fourth_floor_fr.h
+sound ../../elevator/resource/sounds/fr/fifth_floor_fr.h
+sound ../../elevator/resource/sounds/fr/sixth_floor_fr.h
+sound ../../elevator/resource/sounds/fr/first_confirm_cancel_fr.h
+sound ../../elevator/resource/sounds/fr/second_confirm_cancel_fr.h
+sound ../../elevator/resource/sounds/fr/third_confirm_cancel_fr.h
+sound ../../elevator/resource/sounds/fr/fourth_confirm_cancel_fr.h
+sound ../../elevator/resource/sounds/fr/fifth_confirm_cancel_fr.h
+sound ../../elevator/resource/sounds/fr/sixth_confirm_cancel_fr.h
+sound ../../elevator/resource/sounds/fr/save_selection_fr.h
+sound ../../elevator/resource/sounds/fr/which_floor_fr.h
+sound ../../elevator/resource/sounds/de/first_floor_de.h
+sound ../../elevator/resource/sounds/de/second_floor_de.h
+sound ../../elevator/resource/sounds/de/third_floor_de.h
+sound ../../elevator/resource/sounds/de/fourth_floor_de.h
+sound ../../elevator/resource/sounds/de/fifth_floor_de.h
+sound ../../elevator/resource/sounds/de/sixth_floor_de.h
+sound ../../elevator/resource/sounds/de/first_confirm_cancel_de.h
+sound ../../elevator/resource/sounds/de/second_confirm_cancel_de.h
+sound ../../elevator/resource/sounds/de/third_confirm_cancel_de.h
+sound ../../elevator/resource/sounds/de/fourth_confirm_cancel_de.h
+sound ../../elevator/resource/sounds/de/fifth_confirm_cancel_de.h
+sound ../../elevator/resource/sounds/de/sixth_confirm_cancel_de.h
+sound ../../elevator/resource/sounds/de/save_selection_de.h
+sound ../../elevator/resource/sounds/de/which_floor_de.h
+*/
+
