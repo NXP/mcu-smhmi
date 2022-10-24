@@ -320,8 +320,8 @@ void lv_enable_camera_preview(void *frameBuffer, bool enable)
 {
     if (enable)
     {
-        g_dc.ops->enableLayer(&g_dc, 1);
         g_dc.ops->setFrameBuffer(&g_dc, 1, (void *)frameBuffer);
+        g_dc.ops->enableLayer(&g_dc, 1);
     }
     else
     {
