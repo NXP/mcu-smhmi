@@ -39,6 +39,10 @@ To update the main application, a binary must be built for the address `0x301000
 Because of the remap functionality enabled in bootloader, this binary can be placed in each of the three banks, and still work as it is running from the base address. The bootloader checks for the current unused bank and tries to write the image in that specific bank.
 When drag and dropping a binary for the main application, the bootloader checks if the reset handler of the new image is a flash address.
 No other verification is done; the functionality correctness must be handled by the developer.
+During the transfer, it is expected to see the board's onboard LED changes to blue and start blinking.
+After the transfer, the USB Driver Device should disappear from the devices seen by your computer because it left the MSD mode.
+Then the board's onboard LED should change to green until the application is ready. Do not reset the board during this period.
+Wait for a while until the LED turns off and the application starts.  
 After the new image has been written to the empty bank, the UI resource are brought/copied from the older bank to the new bank.
 This means that during the update procedure, the resources will stay the same.
 
@@ -56,6 +60,10 @@ As presented in the last figure, the operations are:
 When updating the resources, the binary needs to be renamed into `RES.bin`.
 The Bootloader contains a list of known files, res.bin being one of those file.
 No verification is done on the resources binary.
+During the transfer, it is expected to see the board's onboard LED changes to blue and start blinking.
+After the transfer, the USB Driver Device should disappear from the devices seen by your computer because it left the MSD mode.
+Then the board's onboard LED should change to green until the resources are ready. Do not reset the board during this period.
+Wait for a while until the LED turns off and the application starts.  
 
 In the same way as updating the main application, the bootloader checks for active bank and writes the binary in the unused one.
 After the write is completed, the older firmware is copied and the new bank is activated.
