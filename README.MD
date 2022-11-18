@@ -53,19 +53,72 @@ The Smart HMI Solution makes use of NXP's "Framework Architecture" which is desi
 
 More details regarding the Framework architecture, including its design and usage, can be found in the [Smart HMI Software Developer Guide].
 
-# coffee_machine
+## Installing Updates
 
-This folder contains the coffee machine demo.
-Main application should be placed at 0x30100000
-Resources for coffee_machine should be placed at 0x30700000
+For each new [release](https://github.com/NXP/mcu-smhmi/releases), pre-built binaries for each of the out-of-box demo applications (Coffee Machine, Elevator, etc.) are provided so that you can quickly flash these updates to your board and test out the changes.
+To test these new releases, the Smart HMI supports a few different mechanisms to quickly and easily update your firmware.
+This includes updating via:
 
-# elevator
+- [Mass Storage Device (MSD) Drag-and-Drop](#mass-storage-device-msd-drag-and-drop-updates)
+- [J-Link](#j-link-updates)
 
-This folder contains the elevator demo.
-Main application should be placed at 0x31500000
-Resources for elevator should be placed at 0x31B00000
+### Mass Storage Device (MSD) Drag-and-Drop Updates
 
-# home_control_panel
+> **Note**
+> This feature currently only supports Windows devices.
+
+While many developers may have access to debug probes like the Segger J-Link which they can use to flash new updates,
+many other stakeholders may not have access to these kinds of tools.
+In order to enable those users to test and run the latest updates,
+the Smart HMI solution supports the ability to update the kit using a drag-and-drop mechanism identical copying files to a USB flash drive.
+
+To perform an MSD update, the kit must first be put into "MSD mode" by pressing and holding the `SW0` push button on the back of the kit while the kit is being powered on. Success will be indicated by a pulsing purple light on the front of the kit.
+
+Once MSD mode is enabled, in addition to the purple light on the front of the kit, your PC will display a new USB Drive device which can be found in File Explorer like any regular USB Drive device.
+
+![USB Drive in File Explorer](docs/source/img/bootloader/bootloader_MSD_FileExplorer.png)
+
+Now, to update the firmware on the device, simply copy the binary file for each demo app you want to update over to the USB Drive associated with your kit.
+While a firmware update is in progress, a dialog window will appear which is identical to what you might see when copying a large set of files from a folder on your PC to a folder on a USB drive.
+Because of the size of these updates and the time it takes to erase and write to the flash,
+this process may take roughly a minute.
+
+Once completed, the board will automatically reset itself and begin running the newly updated application.
+
+At this point, the same process can be repeated for any additional updates you would like to test.
+
+> **Note**
+> MSD Drag-and-Drop updates only work for "application" binaries (Coffee Machine, Elevator, etc.), but not the bootloader.
+> For a discussion of why this is the case, see the "Application Banks" section of the [Smart HMI Software Developer Guide].
+> Instructions to flash "non-application" binaries like the bootloader, see [J-Link](#j-link-updates).
+
+For a more in-depth look at the MSD Drag-and-Drop feature, check out the "Mass Storage Device Updates" section of the [Smart HMI Software Developer Guide].
+
+### J-Link Updates
+
+For developers interested in having more control over how firmware updates are handled, a J-Link Debug Probe can be used to flash updates via the JTAG port found on the back of the kit (`J204`).
+
+Assuming you have access to a J-Link debug probe,
+one option for flashing updates is to use the **"J-Flash"** application found in Segger's [J-Link Software and Documentation Pack](https://www.segger.com/downloads/jlink/).
+
+To use J-Flash to update your kit, perform the following steps:
+
+1. Power your Smart HMI kit using the onboard USB-C port
+2. Connect the USB cable from your J-Link debug probe to your PC
+3. Connect the J-Link 9-Pin Cortex-M adapter cable to the `J204` **"RT JTAG"** port on the back of your kit.
+4. Open the J-Flash application.
+5. Select **"Create New Project"** and click **"Start J-Flash"**
+6. Select **"SWD"** as the target interface.
+7. Select **"MIMXRT1176xxxA_M7"** as the target device.
+8. (Optional) Configure the speed of the probe.
+9. Click **"OK"**
+10. Drag-and-drop the firmware image you want to flash
+    - Make sure to use the flash address corresponding to the application you are flashing (bootloader, Coffee Machine, Elevator, etc.)
+11. Select **"Target->Manual Programming->Program and Verify"**
+
+If successful, you should receive a message like the following:
+
+![Flash and verify successful](./docs/source/img/jflash_success.png)
 
 ## Additional Resources
 
