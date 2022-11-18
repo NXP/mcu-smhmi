@@ -16,10 +16,12 @@ Resources for elevator should be placed at 0x31B00000
 
 # home_control_panel
 
-This folder contains the home control panel demo.
-Main application should be placed at 0x32900000
-Resources for elevator should be placed at 0x32F00000
+## Additional Resources
 
-# framework
+[Smart HMI Software Developer Guide]
+[Smart HMI Getting Started Guide]
+[Smart HMI Website]
 
-This folder contains the framework shared by coffee machine demo, elevator demo and home control panel demo.
+[smart hmi website]: https://www.nxp.com/mcu-smhmi
+[smart hmi getting started guide]: https://www.nxp.com/document/guide/getting-started-with-the-sln-tlhmi-iot:GS-SLN-TLHMI-IOT
+[smart hmi software developer guide]: https://www.nxp.com/docs/en/user-guide/MCU-SMHMI-SDUG.pdf
