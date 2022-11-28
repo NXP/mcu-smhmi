@@ -6,28 +6,68 @@ For information about getting up and running with the Smart HMI solution, check 
 ## Out-of-Box Demos
 
 The Smart HMI Solution comes with a few different demo applications flashed right out of the box.
-These applications include the Coffee Machine and Elevator demo applications,
+These applications include the [Coffee Machine](#coffee-machine), [Elevator](#elevator), and [Smart Home Panel](#smart-home-control-panel) demo applications,
 with new functionality and demos being added in as part of update releases.
 Each of these apps are intended to demonstrate and highlight different functionality that the solution supports,
 while giving a software reference design and boilerplate code to accelerate development of your own applications.
 
 ### Coffee Machine
 
-This folder contains the source code for the Coffee Machine out-of-box demo application.
-By default, the firmware for the Coffee Machine application is located at `0x30100000`
-By default, resources (images, audio files, etc.) for the Coffee Machine application are located at `0x30700000`
+![Coffee Machine Home Screen](./docs/source/img/coffee_machine_home_screen.png)
+
+This demo shows how a hypothetical smart countertop appliance like a coffee machine might utilize features like:
+
+- Multilingual hands-free voice control 
+- Face recognition 
+
+A detailed description of the Coffee Machine demo, including the features it supports and their usage, can be found in the [Smart HMI User Guide].
+
+#### Source Code
+
+The source code for the Coffee Machine out-of-box demo application can be found under the `coffee_machine` folder.
+
+By default, the firmware for the Coffee Machine application is located at `0x30100000`, while the resource files (images, audio files, etc.) are located at `0x30700000`.
 
 ### Elevator
 
-This folder contains the source code for the Elevator out-of-box demo application.
-By default, the firmware for the Elevator application is located at `0x31500000`
-By default, resources (images, audio files, etc.) for the Elevator application are located at `0x31B00000`
+![Elevator](./docs/source/img/elevator_home_screen.png)
+
+The Elevator demo application is one of several different applications supported out-of-the-box by the Smart HMI Solution.
+
+This demo shows how a hypothetical "smart building" application like an elevator might utilize features like:
+
+- Multilingual hands-free voice control 
+- Face recognition 
+
+A detailed description of the Elevator demo, including the features it supports and their usage, can be found in the [Smart HMI User Guide].
+
+#### Source Code
+
+The source code for the Elevator out-of-box demo application can be found under the `elevator` folder.
+
+By default, the firmware for the Elevator application is located at `0x31500000`, while the resource files (images, audio files, etc.) are located at `0x31B00000`.
 
 ### Smart Home Control Panel
 
-This folder contains the source code for the Elevator out-of-box demo application.
-By default, the firmware for the Elevator application is located at `0x32900000`
-By default, resources (images, audio files, etc.) for the Elevator application are located at `0x32F00000`
+> **Note**
+> The Smart Home Control Panel demo is currently in development
+> and will be made available in a future release.
+
+The Smart Home Control Panel demo application is one of several different applications supported out-of-the-box by the Smart HMI Solution.
+
+This demo shows how a hypothetical smart home appliance like a wall control panel might utilize features like:
+
+- Multilingual hands-free voice control 
+- Face recognition w/ liveness detection & antispoofing protection
+- Gesture recognition
+
+A detailed description of the Smart Home Control Panel demo, including the features it supports and their usage, will be made available in the [Smart HMI User Guide] once the demo is released.
+
+#### Source Code
+
+Once ready, the source code for the Smart Home Control Panel out-of-box demo application will be made available under the `smart_home` folder once the demo is released.
+
+By default, the firmware for the Smart Home Control Panel application is located at `0x32900000`, while the resource files (images, audio files, etc.) are located at `0x32F00000`.
 
 ## Bootloader
 
@@ -122,10 +162,12 @@ If successful, you should receive a message like the following:
 
 ## Additional Resources
 
-[Smart HMI Software Developer Guide]
 [Smart HMI Getting Started Guide]
+[Smart HMI User Guide]
+[Smart HMI Software Developer Guide]
 [Smart HMI Website]
 
 [smart hmi website]: https://www.nxp.com/mcu-smhmi
 [smart hmi getting started guide]: https://www.nxp.com/document/guide/getting-started-with-the-sln-tlhmi-iot:GS-SLN-TLHMI-IOT
+[smart hmi user guide]: https://www.nxp.com/docs/en/user-guide/MCU-SMHMI-UG.pdf
 [smart hmi software developer guide]: https://www.nxp.com/docs/en/user-guide/MCU-SMHMI-SDUG.pdf
