@@ -163,8 +163,11 @@ If successful, you should receive a message like the following:
 ## Additional Resources
 
 [Smart HMI Getting Started Guide]
+
 [Smart HMI User Guide]
+
 [Smart HMI Software Developer Guide]
+
 [Smart HMI Website]
 
 [smart hmi website]: https://www.nxp.com/mcu-smhmi
