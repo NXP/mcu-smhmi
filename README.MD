@@ -17,8 +17,8 @@ while giving a software reference design and boilerplate code to accelerate deve
 
 This demo shows how a hypothetical smart countertop appliance like a coffee machine might utilize features like:
 
-- Multilingual hands-free voice control 
-- Face recognition 
+- Multilingual hands-free voice control
+- Face recognition
 
 A detailed description of the Coffee Machine demo, including the features it supports and their usage, can be found in the [Smart HMI User Guide].
 
@@ -36,8 +36,8 @@ The Elevator demo application is one of several different applications supported
 
 This demo shows how a hypothetical "smart building" application like an elevator might utilize features like:
 
-- Multilingual hands-free voice control 
-- Face recognition 
+- Multilingual hands-free voice control
+- Face recognition
 
 A detailed description of the Elevator demo, including the features it supports and their usage, can be found in the [Smart HMI User Guide].
 
@@ -57,7 +57,7 @@ The Smart Home Control Panel demo application is one of several different applic
 
 This demo shows how a hypothetical smart home appliance like a wall control panel might utilize features like:
 
-- Multilingual hands-free voice control 
+- Multilingual hands-free voice control
 - Face recognition w/ liveness detection & antispoofing protection
 - Gesture recognition
 
@@ -110,7 +110,7 @@ This includes updating via:
 While many developers may have access to debug probes like the Segger J-Link which they can use to flash new updates,
 many other stakeholders may not have access to these kinds of tools.
 In order to enable those users to test and run the latest updates,
-the Smart HMI solution supports the ability to update the kit using a drag-and-drop mechanism identical copying files to a USB flash drive.
+the Smart HMI solution supports the ability to update the kit using a drag-and-drop mechanism which allows flashing updates in a manner similar to how you copy files to a USB flash drive.
 
 To perform an MSD update, the kit must first be put into "MSD mode" by pressing and holding the `SW0` push button on the back of the kit while the kit is being powered on. Success will be indicated by a pulsing purple light on the front of the kit.
 
