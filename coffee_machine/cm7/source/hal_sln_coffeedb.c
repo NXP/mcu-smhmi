@@ -164,6 +164,19 @@ static coffee_attribute_t *_HAL_CoffeeDb_GetEntry(uint16_t id)
     return (coffee_attribute_t *)(s_pCoffeeDbBuffer + _HAL_CoffeeDb_GetEntrySize() * id);
 }
 
+static coffeedb_status_t _HAL_CoffeeDb_SaveMetaData(void)
+{
+    coffeedb_status_t status = kCoffeeDBStatus_Success;
+    sln_flash_status_t ret   = FWK_Flash_Save(METADATA_FILE_NAME, &s_coffeeDbMetaData, sizeof(coffeedb_metadata_t));
+
+    if (kStatus_HAL_FlashSuccess != ret)
+    {
+        status = kCoffeeDBStatus_MetaDataFail;
+    }
+
+    return status;
+}
+
 static coffeedb_status_t _HAL_CoffeeDb_SetMetaDataDefault(void)
 {
     coffeedb_status_t status = kCoffeeDBStatus_Success;
@@ -225,13 +238,23 @@ static coffeedb_status_t _HAL_CoffeeDb_LoadMetaData(void)
         {
             if ((s_coffeeDbMetaData.version != COFFEE_DB_VERSION))
             {
-                LOGE("CoffeeDB: Version found in flash different from current version.");
-                _HAL_CoffeeDb_EraseAll();
-                _HAL_CoffeeDb_SetMetaDataDefault();
-                FWK_Flash_Save(METADATA_FILE_NAME, &s_coffeeDbMetaData, sizeof(coffeedb_metadata_t));
+                if (s_coffeeDbMetaData.version == 1)
+                {
+                    LOGD(
+                        "CoffeeDB: Version found in flash different from current version. Version is backward "
+                        "compatible");
+                    s_coffeeDbMetaData.version = COFFEE_DB_VERSION;
+                    _HAL_CoffeeDb_SaveMetaData();
+                }
+                else
+                {
+                    LOGE("CoffeeDB: Version found in flash different from current version.");
+                    _HAL_CoffeeDb_EraseAll();
+                    _HAL_CoffeeDb_SetMetaDataDefault();
+                    FWK_Flash_Save(METADATA_FILE_NAME, &s_coffeeDbMetaData, sizeof(coffeedb_metadata_t));
+                    status = kCoffeeDBStatus_VersionMismatch;
+                }
             }
-
-            status = kCoffeeDBStatus_Success;
         }
         else
         {
@@ -249,19 +272,6 @@ static coffeedb_status_t _HAL_CoffeeDb_LoadMetaData(void)
     else
     {
         LOGE("FaceDB: Failed to initialize the metadata file.");
-        status = kCoffeeDBStatus_MetaDataFail;
-    }
-
-    return status;
-}
-
-static coffeedb_status_t _HAL_CoffeeDb_SaveMetaData(void)
-{
-    coffeedb_status_t status = kCoffeeDBStatus_Success;
-    sln_flash_status_t ret   = FWK_Flash_Save(METADATA_FILE_NAME, &s_coffeeDbMetaData, sizeof(coffeedb_metadata_t));
-
-    if (kStatus_HAL_FlashSuccess != ret)
-    {
         status = kCoffeeDBStatus_MetaDataFail;
     }
 
@@ -304,7 +314,7 @@ static coffeedb_status_t _HAL_CoffeeDb_InitMetaData(void)
 
     status = _HAL_CoffeeDb_LoadMetaData();
 
-    if (kCoffeeDBStatus_Success != status)
+    if ((kCoffeeDBStatus_VersionMismatch != status) && (kCoffeeDBStatus_Success != status))
     {
         status = _HAL_CoffeeDb_SetMetaDataDefault();
         if (kCoffeeDBStatus_Success != _HAL_CoffeeDb_SaveMetaData())

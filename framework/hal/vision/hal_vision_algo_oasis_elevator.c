@@ -846,12 +846,15 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisElevator_Init(vision_algo_dev_t
     s_OasisElevator.prevRunFlag = OASIS_DET_REC_REG;
 
 #ifdef ENABLE_FACEDB
+    facedb_status_t status_facedb         = kFaceDBStatus_Success;
+    elevatordb_status_t status_elevatordb = kElevatorDBStatus_Success;
+
     /* Initial Face Database */
     if (s_pFacedbOps == NULL)
     {
-        s_pFacedbOps           = &g_facedb_ops;
-        facedb_status_t status = s_pFacedbOps->init(OASISLT_getFaceItemSize());
-        if (kFaceDBStatus_Success != status)
+        s_pFacedbOps  = &g_facedb_ops;
+        status_facedb = s_pFacedbOps->init(OASISLT_getFaceItemSize());
+        if ((kFaceDBStatus_Success != status_facedb) && (kFaceDBStatus_VersionMismatch != status_facedb))
         {
             OASIS_LOGE("[OASIS] FaceDb initial failed");
             ret = kStatus_HAL_ValgoInitError;
@@ -861,11 +864,36 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisElevator_Init(vision_algo_dev_t
 
     if (s_pElevatordbOps == NULL)
     {
-        s_pElevatordbOps           = &g_elevatordb_ops;
-        elevatordb_status_t status = s_pElevatordbOps->init();
-        if (kElevatorDBStatus_Success != status)
+        s_pElevatordbOps  = &g_elevatordb_ops;
+        status_elevatordb = s_pElevatordbOps->init();
+        if ((kElevatorDBStatus_VersionMismatch != status_elevatordb) &&
+            (kElevatorDBStatus_Success != status_elevatordb))
         {
             OASIS_LOGE("[OASIS] ElevatorDb initial failed");
+            ret = kStatus_HAL_ValgoInitError;
+            return ret;
+        }
+    }
+
+    if (kElevatorDBStatus_VersionMismatch == status_elevatordb)
+    {
+        s_pFacedbOps->delFaceWithId(INVALID_FACE_ID);\
+        status_elevatordb = s_pElevatordbOps->init();
+        if (kElevatorDBStatus_Success != status_elevatordb)
+        {
+            OASIS_LOGE("[OASIS] ElevatorDb initial failed");
+            ret = kStatus_HAL_ValgoInitError;
+            return ret;
+        }
+    }
+
+    if (kFaceDBStatus_VersionMismatch == status_facedb)
+    {
+        s_pElevatordbOps->delWithId(INVALID_FACE_ID);
+        status_facedb = s_pFacedbOps->init(OASISLT_getFaceItemSize());
+        if (kFaceDBStatus_Success != status_facedb)
+        {
+            OASIS_LOGE("[OASIS] FaceDb initial failed");
             ret = kStatus_HAL_ValgoInitError;
             return ret;
         }
@@ -874,7 +902,8 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisElevator_Init(vision_algo_dev_t
     memset(&s_elevatorAttr, 0x00, sizeof(elevator_attr_t));
     s_elevatorAttr.id    = INVALID_ID;
     s_elevatorAttr.floor = INVALID_FLOOR;
-#endif
+
+#endif /* ENABLE_FACEDB */
 
     s_pFaceFeature = pvPortMalloc(OASISLT_getFaceItemSize());
     if (s_pFaceFeature == NULL)

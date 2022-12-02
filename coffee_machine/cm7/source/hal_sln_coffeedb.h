@@ -16,9 +16,9 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-#define COFFEE_DB_VERSION  2
+#define COFFEE_DB_VERSION  3
 #define COFFEE_DB_MAX_SIZE 100
-#define INVALID_ID        0xFFFF
+#define INVALID_ID         0xFFFF
 
 typedef enum _coffeedb_status
 {
@@ -27,7 +27,8 @@ typedef enum _coffeedb_status
     kCoffeeDBStatus_MallocFail,
     kCoffeeDBStatus_MetaDataFail,
     kCoffeeDBStatus_DbLoadFail,
-    kCoffeeDBStatus_LockFail
+    kCoffeeDBStatus_LockFail,
+    kCoffeeDBStatus_VersionMismatch
 } coffeedb_status_t;
 
 typedef enum _coffee_type

@@ -413,7 +413,7 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
 
                         if (s_pCoffeedbOps != NULL)
                         {
-                            coffee_attribute_t attr;
+                            coffee_attribute_t attr        = {0};
                             coffee_result_t *pCoffeeResult = (coffee_result_t *)result->userData;
 
                             s_pCoffeedbOps->getWithId(id, &attr);
@@ -859,31 +859,59 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Init(vision_algo_
     s_OasisCoffeeMachine.prevRunFlag = OASIS_DET_REC_REG;
 
 #ifdef ENABLE_FACEDB
+    facedb_status_t status_facedb     = kFaceDBStatus_Success;
+    coffeedb_status_t status_coffeedb = kCoffeeDBStatus_Success;
+
     /* Initial Face Database */
     if (s_pFacedbOps == NULL)
     {
-        s_pFacedbOps           = &g_facedb_ops;
-        facedb_status_t status = s_pFacedbOps->init(OASISLT_getFaceItemSize());
-        if (kFaceDBStatus_Success != status)
+        s_pFacedbOps  = &g_facedb_ops;
+        status_facedb = s_pFacedbOps->init(OASISLT_getFaceItemSize());
+        if ((kFaceDBStatus_Success != status_facedb) && (kFaceDBStatus_VersionMismatch != status_facedb))
         {
             OASIS_LOGE("[OASIS] FaceDb initial failed");
             ret = kStatus_HAL_ValgoInitError;
             return ret;
         }
     }
-#endif
 
     if (s_pCoffeedbOps == NULL)
     {
-        s_pCoffeedbOps           = &g_coffedb_ops;
-        coffeedb_status_t status = s_pCoffeedbOps->init();
-        if (kCoffeeDBStatus_Success != status)
+        s_pCoffeedbOps  = &g_coffedb_ops;
+        status_coffeedb = s_pCoffeedbOps->init();
+        if ((kCoffeeDBStatus_Success != status_coffeedb) && (kCoffeeDBStatus_VersionMismatch != status_coffeedb))
         {
             OASIS_LOGE("[OASIS] CoffeeDb initial failed");
             ret = kStatus_HAL_ValgoInitError;
             return ret;
         }
     }
+
+    if (kCoffeeDBStatus_VersionMismatch == status_coffeedb)
+    {
+        s_pFacedbOps->delFaceWithId(INVALID_FACE_ID);
+        status_coffeedb = s_pCoffeedbOps->init();
+        if (kCoffeeDBStatus_Success != status_coffeedb)
+        {
+            OASIS_LOGE("[OASIS] CoffeeDb initial failed");
+            ret = kStatus_HAL_ValgoInitError;
+            return ret;
+        }
+    }
+
+    if (kFaceDBStatus_VersionMismatch == status_facedb)
+    {
+        s_pCoffeedbOps->delWithId(INVALID_FACE_ID);
+        status_facedb = s_pFacedbOps->init(OASISLT_getFaceItemSize());
+        if (kFaceDBStatus_Success != status_facedb)
+        {
+            OASIS_LOGE("[OASIS] FaceDb initial failed");
+            ret = kStatus_HAL_ValgoInitError;
+            return ret;
+        }
+    }
+
+#endif /* ENABLE_FACEDB */
 
     s_pFaceFeature = pvPortMalloc(OASISLT_getFaceItemSize());
     if (s_pFaceFeature == NULL)

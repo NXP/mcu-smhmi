@@ -1,5 +1,11 @@
 # Smart HMI solution release notes
 
+**V1.1.1**
+
+**HotFix**
+
+1. Fixed backwards incompatibility bug created when upgrading the firmware with an update that contains changes to the face database layout.
+
 **V1.1.0**
 
 **What’s new**
@@ -7,7 +13,7 @@
 2. New camera support MIPI - GC2145
 3. Increase flash size to 64MB in order to support 2 applications
 4. NXP VIT library for voice recognition capabilities (en/de/cn)
-5. Multilingual wake word and prompt responds (only for Cybron, DSMT)
+5. Multilingual wake word and prompt responses (only for Cyberon, DSMT)
 6. Barge-in feature
 7. Audio Dump feature for offline audio validation
 8. Ivaldi support for mass production flashing
@@ -20,6 +26,7 @@
 **Bug Fix**
 1. Memory leak in framework
 2. LCD flicker when wake up
+3. Database lacks backward compatibility after update. Affects both coffee machine demo and elevator demo.
 
 
 **Improvements**

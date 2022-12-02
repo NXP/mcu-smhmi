@@ -170,6 +170,19 @@ static elevatordb_status_t _HAL_ElevatorDb_SetMetaDataDefault(void)
     return status;
 }
 
+static elevatordb_status_t _HAL_ElevatorDb_SaveMetaData(void)
+{
+    elevatordb_status_t status = kElevatorDBStatus_Success;
+    sln_flash_status_t ret = FWK_Flash_Save(METADATA_FILE_NAME, &s_elevatorDbMetaData, sizeof(elevatordb_metadata_t));
+
+    if (kStatus_HAL_FlashSuccess != ret)
+    {
+        status = kElevatorDBStatus_MetaDataFail;
+    }
+
+    return status;
+}
+
 static elevatordb_status_t _HAL_ElevatorDb_SetDefault(uint8_t *pDbBuf)
 {
     elevatordb_status_t status = kElevatorDBStatus_Success;
@@ -218,13 +231,22 @@ static elevatordb_status_t _HAL_ElevatorDb_LoadMetaData(void)
         {
             if ((s_elevatorDbMetaData.version != ELEVATOR_DB_VERSION))
             {
-                LOGE("ElevatorDB: Version found in flash different from current version.");
-                _HAL_ElevatorDb_EraseAll();
-                _HAL_ElevatorDb_SetMetaDataDefault();
-                FWK_Flash_Save(METADATA_FILE_NAME, &s_elevatorDbMetaData, sizeof(elevatordb_metadata_t));
+            	if (s_elevatorDbMetaData.version == 1)
+            	{
+            		LOGD("ElevatorDB: Version found in flash different from current version. Version is backward compatible");
+            		s_elevatorDbMetaData.version = ELEVATOR_DB_VERSION;
+            		_HAL_ElevatorDb_SaveMetaData();
+            	}
+            	else
+            	{
+                    LOGE("ElevatorDB: Version found in flash different from current version.");
+                    _HAL_ElevatorDb_EraseAll();
+                    _HAL_ElevatorDb_SetMetaDataDefault();
+                    FWK_Flash_Save(METADATA_FILE_NAME, &s_elevatorDbMetaData, sizeof(elevatordb_metadata_t));
+                    status = kElevatorDBStatus_VersionMismatch;
+            	}
             }
 
-            status = kElevatorDBStatus_Success;
         }
         else
         {
@@ -242,19 +264,6 @@ static elevatordb_status_t _HAL_ElevatorDb_LoadMetaData(void)
     else
     {
         LOGE("ElevatorDb: Failed to initialise the metadata file.");
-        status = kElevatorDBStatus_MetaDataFail;
-    }
-
-    return status;
-}
-
-static elevatordb_status_t _HAL_ElevatorDb_SaveMetaData(void)
-{
-    elevatordb_status_t status = kElevatorDBStatus_Success;
-    sln_flash_status_t ret = FWK_Flash_Save(METADATA_FILE_NAME, &s_elevatorDbMetaData, sizeof(elevatordb_metadata_t));
-
-    if (kStatus_HAL_FlashSuccess != ret)
-    {
         status = kElevatorDBStatus_MetaDataFail;
     }
 
@@ -297,7 +306,7 @@ static elevatordb_status_t _HAL_ElevatorDb_InitMetaData(void)
 
     status = _HAL_ElevatorDb_LoadMetaData();
 
-    if (kElevatorDBStatus_Success != status)
+    if ((kElevatorDBStatus_VersionMismatch != status) && (kElevatorDBStatus_Success != status))
     {
         status = _HAL_ElevatorDb_SetMetaDataDefault();
         if (kElevatorDBStatus_Success != _HAL_ElevatorDb_SaveMetaData())
