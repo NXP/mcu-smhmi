@@ -1,6 +1,6 @@
 # Introduction
 
-This project contains all the source code for [NXP's Smart HMI solution](Smart HMI Website).
+This project contains all the source code for [NXP's Smart HMI solution](www.nxp.com/mcu-smhmi).
 For information about getting up and running with the Smart HMI solution, check out the [Smart HMI Getting Started Guide].
 
 ## Out-of-Box Demos
@@ -8,8 +8,9 @@ For information about getting up and running with the Smart HMI solution, check 
 The Smart HMI Solution comes with a few different demo applications flashed right out of the box.
 These applications include the [Coffee Machine](#coffee-machine), [Elevator](#elevator), and [Smart Home Panel](#smart-home-control-panel) demo applications,
 with new functionality and demos being added in as part of update releases.
+
 Each of these apps are intended to demonstrate and highlight different functionality that the solution supports,
-while giving a software reference design and boilerplate code to accelerate development of your own applications.
+while providing a software reference design and boilerplate code to accelerate development of your own applications.
 
 ### Coffee Machine
 
@@ -114,14 +115,23 @@ the Smart HMI solution supports the ability to update the kit using a drag-and-d
 
 To perform an MSD update, the kit must first be put into "MSD mode" by pressing and holding the `SW0` push button on the back of the kit while the kit is being powered on. Success will be indicated by a pulsing purple light on the front of the kit.
 
+![MSD Enabled](./docs/source/img/bootloader/msd_enabled.gif)
+
 Once MSD mode is enabled, in addition to the purple light on the front of the kit, your PC will display a new USB Drive device which can be found in File Explorer like any regular USB Drive device.
 
 ![USB Drive in File Explorer](docs/source/img/bootloader/bootloader_MSD_FileExplorer.png)
 
 Now, to update the firmware on the device, simply copy the binary file for each demo app you want to update over to the USB Drive associated with your kit.
+
+> **Note**
+> Using the MSD feature to perform an update may change the buttons associated with the Coffee Machine, Elevator, and Smart Home Panel apps.
+> For more info as to why this is the case, check out the MSD section in the [Smart HMI Software Developer Guide].
+
 While a firmware update is in progress, a dialog window will appear which is identical to what you might see when copying a large set of files from a folder on your PC to a folder on a USB drive.
 Because of the size of these updates and the time it takes to erase and write to the flash,
-this process may take roughly a minute.
+this process may take several minutes.
+
+![MSD Update in Progress](./docs/source/img/bootloader/msd_update_in_progress.png)
 
 Once completed, the board will automatically reset itself and begin running the newly updated application.
 
@@ -129,8 +139,8 @@ At this point, the same process can be repeated for any additional updates you w
 
 > **Note**
 > MSD Drag-and-Drop updates only work for "application" binaries (Coffee Machine, Elevator, etc.), but not the bootloader.
-> For a discussion of why this is the case, see the "Application Banks" section of the [Smart HMI Software Developer Guide].
-> Instructions to flash "non-application" binaries like the bootloader, see [J-Link](#j-link-updates).
+> More information can be found in the "Application Banks" section of the [Smart HMI Software Developer Guide].
+> For instructions to flash "non-application" binaries like the bootloader, see [J-Link](#j-link-updates).
 
 For a more in-depth look at the MSD Drag-and-Drop feature, check out the "Mass Storage Device Updates" section of the [Smart HMI Software Developer Guide].
 
