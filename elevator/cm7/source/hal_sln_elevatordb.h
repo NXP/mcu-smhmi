@@ -16,7 +16,7 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-#define ELEVATOR_DB_VERSION  2
+#define ELEVATOR_DB_VERSION  3
 #define ELEVATOR_DB_MAX_SIZE 100
 #define INVALID_ID           0xFFFF
 #define INVALID_FLOOR        0xFFFFFFFF
@@ -28,7 +28,8 @@ typedef enum _elevatordb_status
     kElevatorDBStatus_MallocFail,
     kElevatorDBStatus_MetaDataFail,
     kElevatorDBStatus_DbLoadFail,
-    kElevatorDBStatus_LockFail
+    kElevatorDBStatus_LockFail,
+	kElevatorDBStatus_VersionMismatch
 } elevatordb_status_t;
 
 typedef struct _elevator_attribute
