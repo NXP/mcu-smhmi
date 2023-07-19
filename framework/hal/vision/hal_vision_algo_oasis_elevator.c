@@ -69,8 +69,6 @@ static elevator_attr_t s_elevatorAttr;
 static char s_userName[FACE_NAME_MAX_LEN];
 static uint16_t s_blockingList    = 0;
 static unsigned int s_debugOption = false;
-/*dtc buffer for inference engine optimization*/
-FWKDATA static uint8_t s_DTCOPBuf[DTC_OPTIMIZE_BUFFER_SIZE];
 
 #if OASIS_STATIC_MEM_BUFFER
 __attribute__((section(".bss.$SRAM_OCRAM_CACHED"), aligned(64))) uint8_t g_OasisMemPool[OASIS_STATIC_MEM_POOL];
@@ -127,7 +125,7 @@ static int _oasis_dev_eventsHandler(uint32_t event_id, void *response, event_sta
             {
                 char savedStatus[10];
                 face_user_info_t *userInfo = &(usersInfo->userInfo[index]);
-                elevator_attr_t attr;
+                elevator_attr_t attr       = {0};
                 strcpy(savedStatus, userInfo->isSaved ? "Saved" : "Not saved");
 
                 if (s_pElevatordbOps != NULL)
@@ -211,7 +209,7 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
             FWK_Profiler_StartEvent(OASISLT_EVT_DET_START);
             memset(debugInfo, 0, sizeof(oasis_lite_debug_t));
 
-            result->face_id   = -1;
+            result->face_id   = INVALID_FACE_ID;
             debugInfo->faceID = INVALID_FACE_ID;
         }
         break;
@@ -306,6 +304,17 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
                 }
                 break;
 
+                case OASIS_QUALITY_RESULT_PARTIAL_BRIGHTNESS_FAIL:
+                {
+                    result->qualityCheck = kOasisLiteQualityCheck_Brightness;
+                    if (s_debugOption)
+                    {
+                        OASIS_LOGD("[OASIS] Quality:Face Partial Brightness unfit lrsim[%d], uddiff[%d]",
+                                   para->reserved[18], para->reserved[19]);
+                    }
+                }
+                break;
+
                 default:
                     break;
             }
@@ -352,13 +361,13 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
             {
                 result->rec_result      = kOASISLiteRecognitionResult_Unknown;
                 result->face_recognized = 1;
-                result->face_id         = -1;
+                result->face_id         = INVALID_FACE_ID;
                 debugInfo->sim          = para->reserved[0];
                 debugInfo->faceID       = para->faceID;
                 // unknown face
                 if (s_debugOption)
                 {
-                    OASIS_LOGD("[OASIS] UNKNOWN_FACE:Sim:[%d.%d%]:[%d]", (int)(para->reserved[0] / 100),
+                    OASIS_LOGD("[OASIS] UNKNOWN_FACE:Sim:[%d.%d%%]:[%d]", (int)(para->reserved[0] / 100),
                                (int)(para->reserved[0] % 100), para->faceID);
                 }
             }
@@ -366,7 +375,7 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
             {
                 result->rec_result      = kOASISLiteRecognitionResult_Invalid;
                 result->face_recognized = 0;
-                result->face_id         = -1;
+                result->face_id         = INVALID_FACE_ID;
                 OASIS_LOGI("[OASIS] INVALID_FACE");
             }
         }
@@ -393,14 +402,14 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
                 {
                     result->reg_result = kOASISLiteRegistrationResult_Success;
                     LOGI("[OASIS] kOASISLiteRegistrationResult_Success");
-                    result->face_id = -1;
+                    result->face_id = INVALID_FACE_ID;
                 }
                 else if (res == OASIS_REG_RESULT_DUP)
                 {
                     result->reg_result = kOASISLiteRegistrationResult_Duplicated;
                     LOGI("[OASIS] kOASISLiteRegistrationResult_Duplicated");
                     result->face_id = id;
-                    if (id != -1)
+                    if (id != (uint16_t)-1)
                     {
                         if (s_pFacedbOps != NULL)
                         {
@@ -429,14 +438,14 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
             else
             {
                 result->reg_result = kOASISLiteRegistrationResult_Invalid;
-                result->face_id    = -1;
+                result->face_id    = INVALID_FACE_ID;
             }
         }
         break;
 
         case OASISLT_EVT_DEREG_START:
         {
-            result->face_id      = -1;
+            result->face_id      = INVALID_FACE_ID;
             result->dereg_result = kOASISLiteDeregistrationResult_Invalid;
         }
         break;
@@ -592,7 +601,7 @@ static void _oasis_start_registration(oasis_param_t *pParam)
     pParam->currRunFlag              = OASIS_DET_REC_REG;
     pParam->result.id                = kVisionAlgoID_OasisLite;
     pParam->result.oasisLite.state   = kOASISLiteState_Registration;
-    pParam->result.oasisLite.face_id = -1;
+    pParam->result.oasisLite.face_id = INVALID_FACE_ID;
 
     _process_inference_result(pParam);
 }
@@ -795,7 +804,7 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisElevator_Init(vision_algo_dev_t
     s_OasisElevator.config.size                        = 0;
     s_OasisElevator.config.memPool                     = NULL;
     s_OasisElevator.config.fastMemSize                 = DTC_OPTIMIZE_BUFFER_SIZE;
-    s_OasisElevator.config.fastMemBuf                  = (char *)s_DTCOPBuf;
+    s_OasisElevator.config.fastMemBuf                  = (char *)g_DTCOPBuf;
     s_OasisElevator.config.runtimePara.brightnessTH[0] = 50;
     s_OasisElevator.config.runtimePara.brightnessTH[1] = 180;
     s_OasisElevator.config.runtimePara.frontTH         = 0.5;
@@ -877,7 +886,7 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisElevator_Init(vision_algo_dev_t
 
     if (kElevatorDBStatus_VersionMismatch == status_elevatordb)
     {
-        s_pFacedbOps->delFaceWithId(INVALID_FACE_ID);\
+        s_pFacedbOps->delFaceWithId(INVALID_FACE_ID);
         status_elevatordb = s_pElevatordbOps->init();
         if (kElevatorDBStatus_Success != status_elevatordb)
         {
@@ -1223,11 +1232,11 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisElevator_InputNotify(const visi
             event_face_rec_t oasisEvent;
             if (s_OasisElevator.currRunFlag == OASIS_RUN_FLAG_STOP)
             {
-                oasisEvent.oasisState.state = kOasisState_Stopped;
+                oasisEvent.oasisState.state = kOASISLiteState_Stopped;
             }
             else
             {
-                oasisEvent.oasisState.state = kOasisState_Running;
+                oasisEvent.oasisState.state = kOASISLiteState_Running;
             }
 
             LOGI("[OASIS] get oasis state %d", oasisEvent.oasisState.state);
@@ -1241,9 +1250,9 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisElevator_InputNotify(const visi
             eventOasis = *(event_face_rec_t *)data;
 
             LOGD("[OASIS] Set state [%d]", eventOasis.oasisState.state);
-            if (eventOasis.oasisState.state == kOasisState_Stopped)
+            if (eventOasis.oasisState.state == kOASISLiteState_Stopped)
             {
-                oasisResponse.oasisState.state = kOasisState_Stopped;
+                oasisResponse.oasisState.state = kOASISLiteState_Stopped;
 
                 _set_blocker_bit(kOasisBlockingList_UserInput);
 
@@ -1260,9 +1269,9 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisElevator_InputNotify(const visi
                     _oasis_dev_response(eventBase, &oasisResponse, kEventStatus_Error, true);
                 }
             }
-            else if (eventOasis.oasisState.state == kOasisState_Running)
+            else if (eventOasis.oasisState.state == kOASISLiteState_Running)
             {
-                oasisResponse.oasisState.state = kOasisState_Running;
+                oasisResponse.oasisState.state = kOASISLiteState_Running;
 
                 /* ignore if already started */
                 if (s_OasisElevator.currRunFlag == OASIS_RUN_FLAG_STOP)
@@ -1272,7 +1281,7 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisElevator_InputNotify(const visi
                     oasis_status_t status = _oasis_start(receiver);
                     if (status == kOasis_Failed)
                     {
-                        oasisResponse.oasisState.state = kOasisState_Stopped;
+                        oasisResponse.oasisState.state = kOASISLiteState_Stopped;
                         _oasis_dev_response(eventBase, &oasisResponse, kEventStatus_Error, true);
                     }
                     else

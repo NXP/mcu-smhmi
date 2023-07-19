@@ -1,19 +1,15 @@
----
-sidebar_position: 1
----
-
 # Overview
 
 As the name would imply,
 device managers are responsible for "managing" devices used by the system.
-Each device type (input, output, etc.) has its own type-specific device manager.
+Each device type (input, output, and so on.) has its own type-specific device manager.
 
 A device manager serves two primary purposes:
 
 * Initializing and starting each device registered to that manager
 * Sending data to and receiving data from each device registered to that manager
 
-This section will avoid low-level implementation details of the device managers
+This section avoids low-level implementation details of the device managers
 and instead focus on the device manager APIs and the startup flow for the device managers.
 The device managers themselves are provided as a library binary file to,
 in part,
@@ -66,7 +62,7 @@ int main(void)
 ```
 
 As part of a manager's `start` routine,
-the manager will call the `init` and `start` functions of each of its registered devices.
+the manager calls the `init` and `start` functions of each of its registered devices.
 
 ```{note}
 In general,

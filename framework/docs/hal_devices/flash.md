@@ -1,7 +1,3 @@
----
-sidebar_position: 8
----
-
 # Flash Devices
 
 The flash HAL device represents an abstraction used to implement a device which handles all operations dealing with flash **[1]** (permanent) storage.
@@ -233,7 +229,7 @@ This helps prevent against multiple HAL devices calling `cleanup` and stalling t
 Because only one flash device can be registered at a time per the design of the framework,
 the project has only one filesystem implemented.
 
-The source file for this flash HAL device can be found at "HAL/common/hal_flash_littlefs.c".
+The source file for this flash HAL device can be found at "framework/hal/misc/hal_flash_littlefs.c".
 
 In this example,
 we will demonstrate a way to integrate the well known [Littlefs](https://github.com/littlefs-project/littlefs) in our framework.

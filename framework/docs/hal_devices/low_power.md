@@ -1,7 +1,3 @@
----
-sidebar_position: 7
----
-
 # Low Power Devices
 
 The Low Power/`LPM` HAL device represents an abstraction used to implement a device which controls the power management of the device by configuring the chip-level power mode (normal operation, SNVS, etc.).
@@ -243,7 +239,7 @@ The HAL device invokes this callback to notify the vision algorithm manager of s
 The Low Power Manager will provide this callback to the device when the `init` operator is called.
 As a result, the HAL device should make sure to store the callback in the `init` operator's implementation.
 
-```c title="HAL/common/hal_sln_lpm.c" {10}
+```c title="" {10}
 hal_lpm_status_t HAL_LpmDev_Init(lpm_dev_t *dev,
                                 lpm_manager_timer_callback_t callback,
                                 lpm_manager_timer_callback_t preEnterSleepCallback)
@@ -272,7 +268,7 @@ This callback comes from the LPM Manager
 Because only one low power device can be registered at a time per the design of the framework,
 the project has only one low power device implemented.
 
-The source file for this low power device can be found at "HAL/common/hal_sln_lpm.c".
+The source file for this low power device can be found at "framework/hal/misc/".
 
 In this example,
 we will demonstrate the use of a low power device (using FreeRTOS for timers, etc.)
@@ -284,7 +280,7 @@ and enable/disable low power mode.
 
 ### LPM Manager Device
 
-```c title="HAL/common/hal_sln_lpm.c"
+```c title=""
 /* Here call periodic callback to check idle status. */
 static void HAL_LpmDev_TimerCallback(TimerHandle_t handle)
 {

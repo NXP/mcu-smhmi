@@ -79,7 +79,11 @@ static void _LvglTask(void *param)
     g_LvglInitialized = true;
 
     setup_imgs((unsigned char *)APP_LVGL_IMGS_BASE);
+#if AQT_TEST
+    gui_set_standby();
+#else
     setup_ui(&guider_ui);
+#endif /* AQT_TEST */
     events_init(&guider_ui);
     custom_init(&guider_ui);
     while (1)
@@ -134,7 +138,7 @@ hal_display_status_t HAL_DisplayDev_LVGLCoffeeMachine_Start(const display_dev_t 
 
 hal_display_status_t HAL_DisplayDev_LVGLCoffeeMachine_Blit(const display_dev_t *dev, void *frame, int width, int height)
 {
-    hal_display_status_t ret = kStatus_HAL_DisplaySuccess;
+    hal_display_status_t ret = kStatus_HAL_DisplayRequestFrame;
     LOGI("++HAL_DisplayDev_LVGLCoffeeMachine_Blit");
 
     // Show the new frame.

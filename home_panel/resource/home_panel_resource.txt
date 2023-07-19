@@ -1,0 +1,119 @@
+// resource_build home_panel_resource.txt
+//
+//
+// home_panel_resource.txt format
+// each line for one file description
+//
+// type file_name
+//
+/*
+image ../../home_panel/resource/images/_audio_player_background_1280x720.c
+image ../../home_panel/resource/images/_audio_player_mic_off_70x112.c
+image ../../home_panel/resource/images/_audio_player_next_140x214.c
+image ../../home_panel/resource/images/_audio_player_pause_170x190.c
+image ../../home_panel/resource/images/_audio_player_play_170x190.c
+image ../../home_panel/resource/images/_audio_player_previous_140x214.c
+image ../../home_panel/resource/images/_audio_player_volume_down_144x130.c
+image ../../home_panel/resource/images/_audio_player_volume_up_144x130.c
+image ../../home_panel/resource/images/_auido_player_mic_on_70x112.c
+image ../../home_panel/resource/images/_back_85x70.c
+image ../../home_panel/resource/images/_button_green_alpha_210x110.c
+image ../../home_panel/resource/images/_button_red_alpha_210x110.c
+image ../../home_panel/resource/images/_face_blue_96x93.c
+image ../../home_panel/resource/images/_face_green_96x93.c
+image ../../home_panel/resource/images/_face_red_96x93.c
+image ../../home_panel/resource/images/_help_100x100.c
+image ../../home_panel/resource/images/_home_85x70.c
+image ../../home_panel/resource/images/_main_audio_player_160x160.c
+image ../../home_panel/resource/images/_main_background_1280x630.c
+image ../../home_panel/resource/images/_main_background_bottom_1280x90.c
+image ../../home_panel/resource/images/_main_mic_off_70x112.c
+image ../../home_panel/resource/images/_main_mic_on_70x112.c
+image ../../home_panel/resource/images/_main_security_160x160.c
+image ../../home_panel/resource/images/_main_temp_humidity_34x128.c
+image ../../home_panel/resource/images/_main_thermostat_160x160.c
+image ../../home_panel/resource/images/_other_background_bottom_1280x90.c
+image ../../home_panel/resource/images/_security_arm_270x260.c
+image ../../home_panel/resource/images/_security_armed_324x278.c
+image ../../home_panel/resource/images/_security_back_door_locked_212x112.c
+image ../../home_panel/resource/images/_security_back_door_unlocked_212x112.c
+image ../../home_panel/resource/images/_security_background_bottom_1280x90.c
+image ../../home_panel/resource/images/_security_disarmed_324x278.c
+image ../../home_panel/resource/images/_security_facereg_keypad_frame_575x490.c
+image ../../home_panel/resource/images/_security_front_door_locked_212x112.c
+image ../../home_panel/resource/images/_security_front_door_unlocked_212x112.c
+image ../../home_panel/resource/images/_security_garage_door_locked_212x112.c
+image ../../home_panel/resource/images/_security_garage_door_unlocked_212x112.c
+image ../../home_panel/resource/images/_security_keypad_button_alpha_118x75.c
+image ../../home_panel/resource/images/_security_keypad_frame_601x536.c
+image ../../home_panel/resource/images/_security_pin_121x121.c
+image ../../home_panel/resource/images/_security_timer_green_301x302.c
+image ../../home_panel/resource/images/_security_timer_red_301x302.c
+image ../../home_panel/resource/images/_security_user_setting_128x128.c
+image ../../home_panel/resource/images/_thermostat_add_121x121.c
+image ../../home_panel/resource/images/_thermostat_background_bottom_1280x90.c
+image ../../home_panel/resource/images/_thermostat_delete_121x121.c
+image ../../home_panel/resource/images/_thermostat_edit_121x121.c
+image ../../home_panel/resource/images/_thermostat_fan_auto_off_102x92.c
+image ../../home_panel/resource/images/_thermostat_fan_auto_on_102x92.c
+image ../../home_panel/resource/images/_thermostat_fan_high_off_102x84.c
+image ../../home_panel/resource/images/_thermostat_fan_high_on_102x84.c
+image ../../home_panel/resource/images/_thermostat_fan_low_off_102x84.c
+image ../../home_panel/resource/images/_thermostat_fan_low_on_102x84.c
+image ../../home_panel/resource/images/_thermostat_fan_mid_off_102x84.c
+image ../../home_panel/resource/images/_thermostat_fan_mid_on_102x84.c
+image ../../home_panel/resource/images/_thermostat_fan_off_102x92.c
+image ../../home_panel/resource/images/_thermostat_fan_on_102x92.c
+image ../../home_panel/resource/images/_thermostat_frame_312x310.c
+image ../../home_panel/resource/images/_thermostat_mic_off_50x80.c
+image ../../home_panel/resource/images/_thermostat_mic_on_50x80.c
+image ../../home_panel/resource/images/_thermostat_mode_auto_off_102x84.c
+image ../../home_panel/resource/images/_thermostat_mode_auto_on_102x84.c
+image ../../home_panel/resource/images/_thermostat_mode_cool_off_102x92.c
+image ../../home_panel/resource/images/_thermostat_mode_cool_on_102x92.c
+image ../../home_panel/resource/images/_thermostat_mode_heat_off_102x92.c
+image ../../home_panel/resource/images/_thermostat_mode_heat_on_102x92.c
+image ../../home_panel/resource/images/_thermostat_off_128x128.c
+image ../../home_panel/resource/images/_thermostat_on_128x128.c
+image ../../home_panel/resource/images/_user_setting_128x128.c
+icon ../../home_panel/resource/icons/process_bar_240x14.h
+sound ../../home_panel/resource/sounds/mp3_files/Flying_On_The_Wings_Of_Love.h
+sound ../../home_panel/resource/sounds/mp3_files/Feel_Alright_Main.h
+sound ../../home_panel/resource/sounds/mp3_files/Digital_Technology_Full.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/have_your_favorite_setttings_Confirm_cancel_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/delete_selected_user_confirm_cancel_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/start_registration_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/identified_new_user_verify_pin_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/invalid_Pin_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/registration_successful_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/verify_pin_to_delete_user_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/user_deleted_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/registered_user_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/come_closer_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/stand_still_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/face_the_camera_cn.h
+sound ../../home_panel/resource/sounds/prompts/CN/Zhiyu/reposition_face_cn.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/have_your_favorite_setttings_Confirm_cancel_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/delete_selected_user_confirm_cancel_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/start_registration_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/identified_new_user_verify_pin_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/invalid_Pin_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/registration_successful_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/verify_pin_to_delete_user_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/user_deleted_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/registered_user_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/come_closer_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/stand_still_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/face_the_camera_en.h
+sound ../../home_panel/resource/sounds/prompts/EN/Salli/reposition_face_en.h
+sound ../../home_panel/resource/sounds/prompts/beep.h
+model ../../home_panel/cm7/local_voice/oob_demo_vit/en/VIT_Model_Main_Menu_en.h
+model ../../home_panel/cm7/local_voice/oob_demo_vit/en/VIT_Model_Thermostat_en.h
+model ../../home_panel/cm7/local_voice/oob_demo_vit/en/VIT_Model_Security_en.h
+model ../../home_panel/cm7/local_voice/oob_demo_vit/en/VIT_Model_Audio_Player_en.h
+model ../../home_panel/cm7/local_voice/oob_demo_vit/cn/VIT_Model_Main_Menu_cn.h
+model ../../home_panel/cm7/local_voice/oob_demo_vit/cn/VIT_Model_Thermostat_cn.h
+model ../../home_panel/cm7/local_voice/oob_demo_vit/cn/VIT_Model_Security_cn.h
+model ../../home_panel/cm7/local_voice/oob_demo_vit/cn/VIT_Model_Audio_Player_cn.h
+*/
+

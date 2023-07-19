@@ -1,7 +1,3 @@
----
-sidebar_position: 9
----
-
 # Audio Processing Device
 
 Audio Processing Device mainly is used for Audio Front End(AFE)processing. In following sections, we abridge `Audio Processing Device` as `AFE device`. And also use 'AFE manager' instead of 'audio_processing manager'

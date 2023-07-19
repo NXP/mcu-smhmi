@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2022 NXP
+ * Copyright 2019-2023 NXP
  * All rights reserved.
  *
  *
@@ -38,6 +38,7 @@
  * Variables
  ******************************************************************************/
 static uint8_t s_appImgBuffer[FLASH_SECTOR_SIZE];
+static uint8_t s_appBackupBuffer[FLASH_BLOCK_SIZE];
 
 #ifdef DEBUG_FICA
 __attribute__((section(".data.$SRAM_DTC")))
@@ -134,12 +135,8 @@ int32_t FICA_app_program_ext_abs(uint32_t offset, uint8_t *bufptr, uint32_t writ
     uint32_t pagestartaddr = (offset / EXT_FLASH_PROGRAM_PAGE) * EXT_FLASH_PROGRAM_PAGE;
     uint32_t prestartlen   = offset - pagestartaddr;
     uint32_t tempaddr      = 0;
-
-#if defined(ERASE_BLOCK_SUPPORT)
-    uint32_t sizeIncrement = EXT_FLASH_ERASE_BLOCK;
-#else
-    uint32_t sizeIncrement = EXT_FLASH_ERASE_PAGE;
-#endif /* ERASE_BLOCK_SUPPORT */
+    uint32_t blockSet      = 0;
+    uint32_t blockId       = 0;
 
     bool commflag = false;
 
@@ -163,6 +160,14 @@ int32_t FICA_app_program_ext_abs(uint32_t offset, uint8_t *bufptr, uint32_t writ
     if ((offset + writelen) > s_newAppCurrLen)
     {
         s_newAppCurrLen = (offset + writelen);
+    }
+
+    uint32_t flashAddr = SLN_Flash_Get_Read_Address(s_newAppImgStartAddr + pagestartaddr + pagenumrem);
+
+    if (memcmp((void *)flashAddr, (void *)bufptr, writelen) == 0)
+    {
+        /* Information is already saved */
+        return (SLN_FLASH_NO_ERROR);
     }
 
     // If its not on a flash page boundary, need to read flash before erasing the page
@@ -197,19 +202,53 @@ int32_t FICA_app_program_ext_abs(uint32_t offset, uint8_t *bufptr, uint32_t writ
                 return (SLN_FLASH_ERROR);
         }
 
-        // Copy the data from the passed buffer to the Program Image Buffer
-        memcpy(&s_appImgBuffer[prestartlen], bufptr, curwritelen);
-
         tempaddr = curwriteaddr;
 
-        /* tempAddr is page aligned so if s_newAppImgStartAddr is sizeIncrement aligned
-         * s_newAppImgStartAddr + tempaddr will be in the end sizeIncrement aligned */
+        /* Check if page is empty */
+        uint8_t *flashAddr = (uint8_t *)SLN_Flash_Get_Read_Address(s_newAppImgStartAddr + tempaddr);
+        uint16_t idx       = prestartlen;
+        uint8_t doErase    = false;
 
-        if ((s_newAppImgStartAddr + tempaddr) % sizeIncrement == 0)
+        while (idx < EXT_FLASH_PROGRAM_PAGE)
         {
-            // Erase all pages in this App bank
-            FICA_Erase_Bank(s_newAppImgStartAddr + tempaddr, sizeIncrement);
+            if (flashAddr[idx++] != 0xFF)
+            {
+                /* Page is written clear block.*/
+                doErase = true;
+                break;
+            }
         }
+
+        if (doErase)
+        {
+            uint32_t blockAlignedAddress = ((s_newAppImgStartAddr + tempaddr) / FLASH_BLOCK_SIZE) * FLASH_BLOCK_SIZE;
+            uint32_t sizeToRead          = (s_newAppImgStartAddr + tempaddr) - blockAlignedAddress;
+
+            if (sizeToRead)
+            {
+                SLN_Read_Flash_At_Address(blockAlignedAddress, (uint8_t *)s_appBackupBuffer, sizeToRead);
+            }
+
+            configPRINTF(("[FICA] Erase the block starting at 0x%X. Data read from block: %d \r\n", blockAlignedAddress,
+                          sizeToRead));
+            SLN_Erase_Block(blockAlignedAddress);
+
+            /* Write back what we read */
+            for (int i = 0; i < sizeToRead / EXT_FLASH_PROGRAM_PAGE; i++)
+            {
+                uint8_t *bufferToWrite = &s_appBackupBuffer[i * EXT_FLASH_PROGRAM_PAGE];
+
+                if (SLN_Write_Flash_At_Address(blockAlignedAddress, bufferToWrite) != SLN_FLASH_NO_ERROR)
+                {
+                    return (SLN_FLASH_ERROR);
+                }
+
+                blockAlignedAddress += EXT_FLASH_PROGRAM_PAGE;
+            }
+        }
+
+        // Copy the data from the passed buffer to the Program Image Buffer
+        memcpy(&s_appImgBuffer[prestartlen], bufptr, curwritelen);
 
         if (SLN_Write_Flash_At_Address(s_newAppImgStartAddr + tempaddr, (uint8_t *)s_appImgBuffer) !=
             SLN_FLASH_NO_ERROR)

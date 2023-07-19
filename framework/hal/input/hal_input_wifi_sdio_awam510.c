@@ -71,6 +71,7 @@ enum _wifi_events
 enum _wifi_state_machine
 {
     kWiFi_State_None,         /**< kWiFi_State_None -> Not initialized*/
+    kWiFi_State_FWNotFound,   /** <kWiFi_State_FWNotFound -> Do nothing but don't report it as an error **/
     kWiFi_State_Connected,    /**< kWiFi_State_Connected -> Connected to a WiFi network*/
     kWiFi_State_Disconnected, /**< kWiFi_State_Disconnected -> Not Connected to a WiFi network caused by a disconnection
                                  or wrong credentials*/
@@ -91,8 +92,10 @@ static void *s_WiFiTaskTCBBReference = NULL;
 static status_t _getIPAddress(char *valueToString);
 static status_t _getNetworkSSID(char *valueToString);
 static status_t _getNetworkPassword(char *valueToString);
+#if ENABLE_FTP_CLIENT
 static status_t _getFTPServerInfo(char *valueToString);
-
+#endif /* ENABLE_FTP_CLIENT
+*/
 static hal_output_status_t HAL_OutputDev_WiFiAWAM510_Init(output_dev_t *dev, output_dev_callback_t callback);
 static hal_output_status_t HAL_OutputDev_WiFiAWAM510_Deinit(const output_dev_t *dev);
 static hal_output_status_t HAL_OutputDev_WiFiAWAM510_Start(const output_dev_t *dev);
@@ -452,6 +455,10 @@ static void _doInit(void)
             LOGE("Failed to start WiFi module.");
         }
     }
+    else if (result == WM_E_NOENT)
+    {
+        _setWiFiState(kWiFi_State_FWNotFound);
+    }
     else
     {
         LOGE("Failed to initialized WiFi module.");
@@ -537,7 +544,7 @@ static int _HAL_InputDev_WiFiAWAM510_Init(fwk_task_data_t *arg)
             pWiFiInitMsg->id = kWiFi_Join;
             FWK_Message_Put(kAppTaskID_WiFi, &pWiFiInitMsg);
         }
-        else
+        else if (s_WiFiState != kWiFi_State_FWNotFound)
         {
             return -1;
         }
@@ -552,8 +559,11 @@ static int _HAL_InputDev_WiFiAWAM510_Init(fwk_task_data_t *arg)
     }
     else
     {
-        LOGD("WiFi state is provisioning.");
-        _setWiFiState(kWiFi_State_Provisioning);
+        if (s_WiFiState != kWiFi_State_FWNotFound)
+        {
+            LOGD("WiFi state is provisioning.");
+            _setWiFiState(kWiFi_State_Provisioning);
+        }
     }
 
     return 0;
@@ -563,6 +573,12 @@ static void _HAL_InputDev_WiFiAWAM510_MessageHandler(fwk_message_t *pMsg, fwk_ta
 {
     if (pMsg == NULL)
         return;
+
+    if (s_WiFiState == kWiFi_State_FWNotFound)
+    {
+        LOGE("WiFi fw not found, load the firmware");
+        return;
+    }
 
     switch (pMsg->id)
     {

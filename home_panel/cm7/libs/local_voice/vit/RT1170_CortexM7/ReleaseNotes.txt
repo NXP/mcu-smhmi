@@ -1,0 +1,24 @@
+
+----------------------------------------------------------------------
+REL 04.08.00 - LA_OPT_NXP_Software_License
+----------------------------------------------------------------------
+VIT integrating LP_VAD, WakeWordEngine Text2Model and Voice Commands Text2Model features.
+Core supported : Cortex-M7
+
+Languages supported by the VIT library: English - Mandarin - Spanish - German - Japanese - Korean - French - Turkish
+
+2 Models provided : English and Mandarin
+English WakeWord supported : "HEY NXP", "HEY TV"
+Mandarin  WakeWord supported : " 你好 恩 智 浦 ", "你好 电视"
+See VIT_Model.h for the list of commands supported by the different models.
+
+Dependency : CMSIS_DSP lib
+
+New features :
+
+Changes :
+    - Fix sequencing issue when VIT is configured in VoiceCommand mode only
+    - Mandarin performances improvements
+
+        
+Notes : VIT lib is supporting 1 MIC only

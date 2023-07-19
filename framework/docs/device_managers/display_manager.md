@@ -1,10 +1,6 @@
----
-sidebar_position: 5
----
+# Display manager
 
-# Display Manager
-
-Display manager manages the display HAL devices which can be registered into the system.
+Display manager manages the display HAL devices that can be registered into the system.
 
 ## APIs
 
@@ -52,5 +48,5 @@ int FWK_DisplayManager_Deinit();
 ```
 
 ```{warning}
-Calling this function is unnecessary in most applications and should be used with caution.
+Calling this function is unnecessary in most applications and must be used with caution.
 ```

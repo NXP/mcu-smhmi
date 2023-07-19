@@ -1,12 +1,8 @@
----
-sidebar_position: 2
----
-
 # Coffee machine CM7
 
-This Coffee Machine CM7 host project is running on the CM7 core.
+This Coffee Machine CM7 host project runs on the CM7 core.
 
-It will be linked into flash with the combination of the CM4 project.
+It is linked to flash with the combination of the CM4 project.
 
 The CM7 was designed to focus on the vision and voice algorithms' processing to get the best performance.
 
@@ -21,9 +17,9 @@ The CM7 was designed to focus on the vision and voice algorithms' processing to 
 # Boot sequence
 The "main" entry of this project is located in the "coffee_machine/cm7/source/sln_smart_tlhmi_cm7.cpp" file.
 The basic boot up flow is:
-- Board level initialization
-- Framework initialization
-- HAL devices registration
+- Initialize board level
+- Initialize framework
+- Register HAL devices
 - Start the framework
 - Start the freeRTOS scheduler
 
@@ -53,10 +49,10 @@ int main(void)
 ```
 
 # Board level initialization
-The board-level initialization is implemented in the "APP_BoardInit()" entry which is located in "coffee_machine/cm7/source/sln_smart_tlhmi_cm7.cpp" file.
+The board-level initialization is implemented in the "APP_BoardInit()" entry which is located in "coffee_machine/cm7/source/sln_smart_tlhmi_cm7.cpp".
 Below is the main flow:
 - Relocate vector table into RAM
-- MPU, Clock, and Pins configuration
+- Configure MPU, Clock, and Pins
 - Debug console with hardware semaphore initialization
 - System time stamp start
 - Load resource from flash into share memory region
@@ -100,13 +96,13 @@ The below framework managers are enabled in the cm7 side with the following prio
 
 Where P0 is the highest priority and P4 is the least prioritized.
 ```{note}
-Choosing the right priority for manager is something that needs to be addressed based on the requirements.
-Our recommendation is to keep Vision manager equal or less than Voice manager, or else audio sample can be lost.
+Choosing the right priority for the manager is something that must be addressed based on the requirements. 
+Our recommendation is to keep Vision manager equal to or less than Voice manager, or the audio sample can be lost.
 ```
-Please refer to the framework doc located in "framework/doc" for a detailed description of these framework managers.
+Refer to the framework documentation located in "framework/doc" for a detailed description of these framework managers.
 
 ```{note}
-Here init file system and application configuration first to prepare the environment for other framework managers.
+To prepare the environment for other framework managers, initialize the file system and application configuration first.
 ```
 
 ```c
@@ -167,7 +163,7 @@ The enabled HAL devices are configured in the "coffee_machine/cm7/board/board_de
 The registration of the enabled HAL devices is implemented in the `APP_RegisterHalDevices(...)` function which is located in ""coffee_machine/cm7/source/sln_smart_tlhmi_cm7.cpp":
 
 ```{note}
-The `APP_RegisterHalDevices(...)` should be called after the framework initialization `APP_InitFramework(...)` and before framework startup `APP_StartFramework(...)`.
+The `APP_RegisterHalDevices(...)` must be called after the framework initialization `APP_InitFramework(...)` and before framework startup `APP_StartFramework(...)`.
 ```
 
 ```c
@@ -192,9 +188,9 @@ int APP_RegisterHalDevices(void)
 # Logging
 Both the CM7 and CM4 projects are leveraging the [FreeRTOS logging library](https://www.freertos.org/logging.html).
 
-The FreeRTOS logging library code is located in the logging folder where you can find the detailed document "coffee_machine/cm7/freertos/libraries/logging/README.md".
+The FreeRTOS logging library code is located in the logging folder where you can find the detailed document located in "coffee_machine/cm7/freertos/libraries/logging/README.md".
 
-The CM7 and CM4 share the same low-level LPUART12 peripheral for the logging output. The hardware semaphore machanism is used to guarantee the concurrence access of LPUART12 peripheral. And they also share the same low-level timer to get the unified timestamp of the logging information.
+The CM7 and CM4 share the low-level LPUART12 peripheral for the logging output. The hardware semaphore mechanism is used to guarantee the concurrence access of the LPUART12 peripheral. They share a low-level timer to get the unified timestamp of the logging information.
 
 ## Log Task Init
 The application calls the `xLoggingTaskInitialize(...)` API to create the logging task in the `main()` entry of this project and is located in "coffee_machine/cm7/source/sln_smart_tlhmi_cm7.cpp":
@@ -227,10 +223,10 @@ There are four kinds of logging that can be used in both cm7 and cm4, which you 
 # Coffee Machine database
 The Coffee Machine application uses framework flash operations with low-level littlefs file system to store the recognized user-faces database and user coffee information. The detailed usage API is located in files "framework/hal/vision/hal_sln_facedb.h" and "coffee_machine/cm7/source/hal_sln_coffeedb.h". The face database and user coffee information database entry are bound together using user id. The user id is a unique identifier on one device.
 
-To make it easier for user to add his own database with personal attributes, we split the face database from user database. The user should create something similar with hal_sln_coffeedb.h and add attributes like in the coffee_attribute_t structure.
+To make it easier for users to add their database with personal attributes, we split the face database from user database. The user should create something similar with hal_sln_coffeedb.h and add attributes like in the coffee_attribute_t structure.
 
 ## Face recognize databse usage
-The ***g_facedb_ops*** handles all kinds of face database operation.
+***g_facedb_ops*** handles all kinds of face database operation.
 ```c
 typedef struct _facedb_ops
 {
@@ -255,7 +251,7 @@ extern const facedb_ops_t g_facedb_ops;
 ```
 
 ## User coffee information database usage
-The ***g_coffedb_ops*** handles all kinds of user information database operation.
+***g_coffedb_ops*** handles all kinds of user information database operation.
 
 ```c
 ypedef enum _coffee_type

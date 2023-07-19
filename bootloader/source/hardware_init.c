@@ -27,5 +27,6 @@ void BOARD_InitHardware(void)
     BOARD_ConfigMPU();
     BOARD_InitBootPins();
     BOARD_InitBootClocks();
+    BOARD_ResetDisplayMix();
 }
 /*${function:end}*/

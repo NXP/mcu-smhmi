@@ -227,7 +227,7 @@ static hal_display_status_t HAL_DisplayDev_Lpuart_Start(const display_dev_t *dev
 
 static hal_display_status_t HAL_DisplayDev_Lpuart_Blit(const display_dev_t *dev, void *frame, int width, int height)
 {
-    hal_display_status_t ret        = kStatus_HAL_DisplaySuccess;
+    hal_display_status_t ret        = kStatus_HAL_DisplayRequestFrame;
     static const uint8_t TU_MAGIC[] = {0x53, 0x79, 0x4c};
 
     LOGD("HAL_DisplayDev_Lpuart_Blit");

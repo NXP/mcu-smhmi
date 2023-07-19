@@ -1,7 +1,3 @@
----
-sidebar_position: 8
----
-
 # Multicore Devices
 
 The multicore HAL device represents an abstraction used to implement a device which handles all multicore message passing
@@ -141,7 +137,9 @@ In order to create a two way communication, a send task and receive task need to
 Multicore Manager will act as a `send task`, while the `receive task` is created within the Hal device init. The receive task also inherits the priority of the send task.
 The portable layer, mandatory for this message buffer solution to work in dual core system, is provided as part of the SDK middleware for RT1170 and is based on the MCMGR middleware. MCMGR uses under the hood the MU peripheral.
 
-![MCMgr Data Exchange Diagram](../img/MCMgrDataExchangeDiagram.png)
+<fig>
+    <image href="../img/MCMgrDataExchangeDiagram.png"/>
+</fig>
 
 The send and receive task should be built having a non-blocking design pattern in mind and they should be initialized with highest priority in order to have the best response time.
 

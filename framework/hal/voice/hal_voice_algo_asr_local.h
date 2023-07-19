@@ -44,7 +44,8 @@ extern "C" {
 #define DEFAULT_ACTIVE_LANGUAGE (ASR_ENGLISH)
 #endif /* ENABLE_DSMT_ASR */
 
-#define k_nMaxTime (300)
+// set to 500 from v2.2.16.2
+#define k_nMaxTime (500)
 
 // the response waiting time in ASR session
 #define TIMEOUT_TIME_IN_MS 60000
@@ -79,11 +80,9 @@ typedef enum _asr_inference
 
     /* Voice Commands models for Coffee Machine demo */
     ASR_CMD_COFFEE_MACHINE = (1U << 1U), /* Coffee configuration (ex: Cappuccino, Strong, Small etc.) */
-    ASR_CMD_USER_REGISTER  = (1U << 2U), /* User's coffee selection registration (ex: Confirm, Cancel) */
 
     /* Voice Commands models for Elevator demo */
     ASR_CMD_ELEVATOR       = (1U << 1U), /* Floor selection (ex: Floor one, Floor two etc.) */
-    ASR_CMD_FLOOR_REGISTER = (1U << 2U), /* User's floor selection registration (ex: Confirm, Cancel) */
 
     /* Voice Commands models for Home Panel demo */
     ASR_CMD_HP_MAIN_MENU    = (1U << 1U), /* Sub-demo selection (ex: Thermostat, Security etc.) */
@@ -201,6 +200,7 @@ typedef struct _asr_inference_result
     asr_voice_detect_status_t status;
     asr_language_t language;
     int32_t keywordID;
+    asr_inference_t demo;
 } asr_inference_result_t;
 
 #if defined(__cplusplus)

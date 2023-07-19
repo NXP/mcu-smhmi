@@ -22,12 +22,6 @@
  * Definitions
  ******************************************************************************/
 
-/* Below defines are not configurable. */
-#define AFE_INPUT_AMP_SAMPLE_BYTES 2
-#define AFE_OUTPUT_SAMPLE_BYTES    2
-#define ASR_INPUT_SAMPLE_BYTES     2
-#define ASR_INPUT_CYCLE_SLOTS      4
-
 #if !AMP_LOOPBACK_DISABLED
 /* Defines used to sync microphones with speaker */
 #define PCM_CYCLE_DURATION_US  10000
@@ -53,14 +47,58 @@ typedef struct _sln_speaker_feedback
 } sln_speaker_feedback_t;
 #endif /* !AMP_LOOPBACK_DISABLED */
 
-#if ENABLE_OUTPUT_DEV_AudioDump == 1
-#define AUDIO_DUMP_SLOTS_CNT  10
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+typedef enum clean_consumer
+{
+    ASR_UNKNOWN,
+    ASR_SKIPPED,
+    ASR_WW_MODEL,
+    ASR_CMD_MODEL
+} clean_consumer_t;
+
+typedef struct stream_header
+{
+    /*
+     * 0: louder speaker is not playing. 1: louder speaker is playing
+     */
+    uint8_t amp_flag;
+    /*
+     *  UNKNOW: not consumed by asr yet. ASR_WW_MODEL: consumed by WW model. ASR_CMD_MODEL: consumed by CMD model.
+     */
+    uint8_t clean_consumer;
+    uint16_t frame_size_in_byte;
+    uint32_t frame_seq;
+} stream_header_t;
+
+#define STREAM_HEADER_SIZE    8
 #define AUDIO_DUMP_CHUNKS_CNT 3
-#define AUDIO_DUMP_SLOT_SIZE (AFE_INPUT_MIC_BUFFER_SIZE + AFE_INPUT_AMP_BUFFER_SIZE + AFE_OUTPUT_BUFFER_SIZE)
+#define AUDIO_DUMP_SLOTS_CNT  (ASR_INPUT_CYCLE_SLOTS * AUDIO_DUMP_CHUNKS_CNT)
+#define AUDIO_DUMP_SLOT_SIZE \
+    (STREAM_HEADER_SIZE + AFE_INPUT_MIC_BUFFER_SIZE + AFE_INPUT_AMP_BUFFER_SIZE + AFE_OUTPUT_BUFFER_SIZE)
 
 /* Skip first frames of audio dump to be sure that audio dump task is ready. */
-#define AUDIO_DUMP_SKIP_FIRST_FRAMES_CNT 100
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 1 */
+#if AQT_TEST
+#define AUDIO_DUMP_SKIP_FIRST_FRAMES_CNT 0
+#else
+#define AUDIO_DUMP_SKIP_FIRST_FRAMES_CNT 99
+#endif /*AQT_TEST*/
+
+AT_NONCACHEABLE_SECTION_ALIGN_SDRAM(static uint8_t s_dumpOutPool[AUDIO_DUMP_SLOTS_CNT][AUDIO_DUMP_SLOT_SIZE], 4);
+
+static uint32_t s_dumpBufferProduceSeq = 0;
+static uint32_t s_dumpBufferConsumeSeq = 0;
+#define SEQ_LEN_IN_BYTES 4
+
+static void _preMarkcleanStreamConsumed(clean_consumer_t Type);
+static void _preMarkcleanStreamSkipped(uint32_t seq);
+
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
+
+#if AQT_TEST
+static uint8_t s_AFE_ByPass = 1;
+#else
+static uint8_t s_AFE_ByPass = 0;
+#endif /*AQT_TEST*/
 
 #if SELF_WAKE_UP_PROTECTION
 /* Forward streamer's data to ASR for a self wake up detection check.
@@ -78,7 +116,13 @@ typedef struct _sln_speaker_feedback
 static AT_NONCACHEABLE_SECTION_ALIGN_DTC(uint8_t s_afeExternalMemory[AFE_MEM_SIZE_2MICS], 4);
 
 AT_NONCACHEABLE_SECTION_ALIGN_DTC(static uint8_t s_afeMicIn[AFE_INPUT_MIC_BUFFER_SIZE], 4);
-AT_NONCACHEABLE_SECTION_ALIGN_DTC(static uint8_t s_asrInput[ASR_INPUT_CYCLE_SLOTS][ASR_INPUT_BUFFER_SLOTS][ASR_INPUT_BUFFER_SIZE], 4);
+
+AT_NONCACHEABLE_SECTION_ALIGN_DTC(
+    static uint8_t s_asrInput[ASR_INPUT_CYCLE_SLOTS][ASR_INPUT_BUFFER_SLOTS][ASR_INPUT_BUFFER_SIZE], 4);
+
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+AT_NONCACHEABLE_SECTION_ALIGN_DTC(static uint32_t s_dumpSEQ[ASR_INPUT_CYCLE_SLOTS][ASR_INPUT_FRAMES], 4);
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
 
 static volatile uint32_t s_utteranceLength = 0;
 
@@ -91,10 +135,6 @@ static uint8_t s_speakerFeedbackSlotRead                                    = 0;
 static uint8_t s_speakerFeedbackSlotFull                                    = 0;
 static sln_speaker_feedback_t s_speakerFeedback[SPEAKER_FEEDBACK_SLOTS_CNT] = {0};
 #endif /* !AMP_LOOPBACK_DISABLED */
-
-#if ENABLE_OUTPUT_DEV_AudioDump == 1
-AT_NONCACHEABLE_SECTION_ALIGN_SDRAM(static uint8_t s_dumpOutPool[AUDIO_DUMP_SLOTS_CNT][AUDIO_DUMP_SLOT_SIZE * AUDIO_DUMP_CHUNKS_CNT], 4);
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 1 */
 
 /* g_MQSPlaying is used to disable ASR processing while speaker is streaming prompts.
  * g_MQSPlaying should not be set to true in case barge-in is required. */
@@ -116,18 +156,6 @@ static void _addSpeakerFeedback(int16_t *buffer, uint32_t length, uint32_t timeU
 static uint32_t _consumeSpeakerFeedback(int16_t *dst, uint32_t length);
 static int16_t *_getSpeakerFeedback(void);
 #endif /* !AMP_LOOPBACK_DISABLED */
-
-#if ENABLE_OUTPUT_DEV_AudioDump == 1
-static void _forwardDataToAudioDump(const audio_processing_dev_t *dev,
-                                    void *mic1,
-                                    uint32_t mic1Size,
-                                    void *mic2,
-                                    uint32_t mic2Size,
-                                    void *amp,
-                                    uint32_t ampSize,
-                                    void *clean,
-                                    uint32_t cleanSize);
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 1 */
 
 /*******************************************************************************
  * Code
@@ -192,7 +220,7 @@ static uint8_t _forwardDataToAsr(const audio_processing_dev_t *dev, void *afeCle
         {
             memcpy(&s_asrInput[s_slotIdx][1][s_accSamples * AFE_OUTPUT_BUFFER_SIZE], afeAmp, AFE_OUTPUT_BUFFER_SIZE);
             dataToSendSize *= 2;
-            s_afeAmpClear   = ASR_SPEAKER_PADDING_SILENCE_1S;
+            s_afeAmpClear = ASR_SPEAKER_PADDING_SILENCE_1S;
         }
         else if (s_afeAmpClear > 0)
         {
@@ -210,6 +238,11 @@ static uint8_t _forwardDataToAsr(const audio_processing_dev_t *dev, void *afeCle
         /* Pass output of AFE to wake word */
         memcpy(&s_asrInput[s_slotIdx][0][s_accSamples * AFE_OUTPUT_BUFFER_SIZE], afeCleanOut, AFE_OUTPUT_BUFFER_SIZE);
 
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+        s_dumpSEQ[s_slotIdx][s_accSamples] = s_dumpBufferProduceSeq;
+        _preMarkcleanStreamConsumed(ASR_UNKNOWN);
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
+
         /* If we've accumulated enough audio, send it to ASR */
         if (s_accSamples == (ASR_INPUT_FRAMES - 1))
         {
@@ -225,8 +258,14 @@ static uint8_t _forwardDataToAsr(const audio_processing_dev_t *dev, void *afeCle
                 audio_processing.eventId   = kAudioProcessingEvent_Done;
                 audio_processing.eventInfo = kEventInfo_Local;
                 audio_processing.data      = s_asrInput[s_slotIdx];
-                audio_processing.size      = dataToSendSize;
-                audio_processing.copy      = 0;
+
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+                audio_processing.data_marks = s_dumpSEQ[s_slotIdx];
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
+
+                audio_processing.size = dataToSendSize;
+                audio_processing.copy = 0;
+                s_dirtySamples        = false;
 
                 dev->cap.callback(dev, audio_processing, 0);
                 s_slotIdx = (s_slotIdx + 1) % ASR_INPUT_CYCLE_SLOTS;
@@ -239,7 +278,26 @@ static uint8_t _forwardDataToAsr(const audio_processing_dev_t *dev, void *afeCle
         {
             s_dirtySamples = false;
             memset(s_asrInput[s_slotIdx], 0, ASR_INPUT_BUFFER_SIZE);
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+            uint8_t dirtyCNT = s_accSamples + 1;
+            uint8_t i;
+            for (i = 0; i < dirtyCNT; i++)
+            {
+                s_dumpSEQ[s_slotIdx][i] = 0;
+            }
+
+            dirtyCNT = s_dumpBufferProduceSeq > dirtyCNT ? dirtyCNT : s_dumpBufferProduceSeq;
+            while (dirtyCNT > 0)
+            {
+                _preMarkcleanStreamSkipped(s_dumpBufferProduceSeq - dirtyCNT);
+                dirtyCNT--;
+            }
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
         }
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+        s_dumpSEQ[s_slotIdx][s_accSamples] = 0;
+        _preMarkcleanStreamSkipped(s_dumpBufferProduceSeq);
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
     }
 
     s_accSamples = (s_accSamples + 1) % ASR_INPUT_FRAMES;
@@ -446,7 +504,7 @@ static int16_t *_getSpeakerFeedback(void)
 }
 #endif /* !AMP_LOOPBACK_DISABLED */
 
-#if ENABLE_OUTPUT_DEV_AudioDump == 1
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
 /**
  * @brief Send mic1, mic2, amp and clean (processed by AFE) streams to Audio Dump component.
  *
@@ -458,8 +516,7 @@ static int16_t *_getSpeakerFeedback(void)
  * @param clean Pointer to the clean stream.
  * @param cleanSize Size in bytes of clean stream.
  */
-static void _forwardDataToAudioDump(const audio_processing_dev_t *dev,
-                                    void *mic1,
+static void _packDataToAudioDumpBuf(void *mic1,
                                     uint32_t mic1Size,
                                     void *mic2,
                                     uint32_t mic2Size,
@@ -468,62 +525,206 @@ static void _forwardDataToAudioDump(const audio_processing_dev_t *dev,
                                     void *clean,
                                     uint32_t cleanSize)
 {
-    static uint8_t s_chunkIdx         = 0;
-    static uint8_t s_dumpOutPoolIdx   = 0;
-    static uint32_t s_skipFirstFrames = 0;
+    uint8_t *dumpBuffer   = NULL;
+    uint8_t dumpBufferIdx = 0;
 
-    uint8_t *dumpBuffer    = NULL;
-    uint32_t dumpBufferIdx = 0;
+    assert((s_dumpBufferProduceSeq - s_dumpBufferConsumeSeq) < AUDIO_DUMP_SLOTS_CNT);
 
-    if (s_skipFirstFrames > AUDIO_DUMP_SKIP_FIRST_FRAMES_CNT)
+    dumpBufferIdx = s_dumpBufferProduceSeq % AUDIO_DUMP_SLOTS_CNT;
+
+    stream_header_t *dumpBufferHeader = (stream_header_t *)s_dumpOutPool[dumpBufferIdx];
+
+    if (amp == NULL)
     {
-        dumpBuffer = &s_dumpOutPool[s_dumpOutPoolIdx][dumpBufferIdx * AUDIO_DUMP_SLOT_SIZE + s_chunkIdx * mic1Size];
-        memcpy(dumpBuffer, mic1, mic1Size);
-        dumpBufferIdx += mic1Size;
-
-        dumpBuffer = &s_dumpOutPool[s_dumpOutPoolIdx][dumpBufferIdx * AUDIO_DUMP_CHUNKS_CNT + s_chunkIdx * mic2Size];
-        memcpy(dumpBuffer, mic2, mic2Size);
-        dumpBufferIdx += mic2Size;
-
-        dumpBuffer = &s_dumpOutPool[s_dumpOutPoolIdx][dumpBufferIdx * AUDIO_DUMP_CHUNKS_CNT + s_chunkIdx * ampSize];
-        if (amp != NULL)
-        {
-            memcpy(dumpBuffer, amp, ampSize);
-        }
-        else
-        {
-            memset(dumpBuffer, 0, ampSize);
-        }
-        dumpBufferIdx += ampSize;
-
-        dumpBuffer = &s_dumpOutPool[s_dumpOutPoolIdx][dumpBufferIdx * AUDIO_DUMP_CHUNKS_CNT + s_chunkIdx * cleanSize];
-        memcpy(dumpBuffer, clean, cleanSize);
-        dumpBufferIdx += cleanSize;
-
-        if (s_chunkIdx == (AUDIO_DUMP_CHUNKS_CNT - 1))
-        {
-            if (dev->cap.callback != NULL)
-            {
-                audio_processing_event_t audio_processing = {0};
-
-                audio_processing.eventId   = kAudioProcessingEvent_Dump;
-                audio_processing.eventInfo = kEventInfo_Remote;
-                audio_processing.data      = s_dumpOutPool[s_dumpOutPoolIdx];
-                audio_processing.size      = AUDIO_DUMP_SLOT_SIZE * AUDIO_DUMP_CHUNKS_CNT;
-                audio_processing.copy      = 0;
-
-                dev->cap.callback(dev, audio_processing, 0);
-            }
-            s_dumpOutPoolIdx = (s_dumpOutPoolIdx + 1) % AUDIO_DUMP_SLOTS_CNT;
-        }
-        s_chunkIdx = (s_chunkIdx + 1) % AUDIO_DUMP_CHUNKS_CNT;
+        dumpBufferHeader->amp_flag = 0;
     }
     else
     {
-        s_skipFirstFrames++;
+        dumpBufferHeader->amp_flag = 1;
+    }
+
+    dumpBufferHeader->frame_seq          = s_dumpBufferProduceSeq;
+    dumpBufferHeader->frame_size_in_byte = STREAM_HEADER_SIZE + mic1Size + mic2Size + ampSize + cleanSize;
+
+    dumpBuffer = (uint8_t *)s_dumpOutPool[dumpBufferIdx];
+
+    dumpBuffer += STREAM_HEADER_SIZE;
+    memcpy(dumpBuffer, mic1, mic1Size);
+
+    dumpBuffer += mic1Size;
+    memcpy(dumpBuffer, mic2, mic2Size);
+
+    dumpBuffer += mic2Size;
+    if (dumpBufferHeader->amp_flag == 0)
+    {
+        /*
+         *  magic digits of A5A5A5... identifies that speaker does not play back.
+         *  This filling operation is not necessary. On the PC tool we also can check
+         *  louder speaker's status by reading the audio stream header metrics.
+         *  With these fillings, it's convenient for us to listen to the generated wav file on PC.
+         */
+        memset(dumpBuffer, 0xA5, ampSize);
+    }
+    else
+    {
+        memcpy(dumpBuffer, amp, ampSize);
+    }
+
+    dumpBuffer += ampSize;
+    memcpy(dumpBuffer, clean, cleanSize);
+
+    s_dumpBufferProduceSeq++;
+}
+
+static void _preMarkcleanStreamSkipped(uint32_t seq)
+{
+    uint8_t dumpBufferIdxS = 0;
+    stream_header_t *dumpBufferHeader;
+
+    if (seq == 0)
+    {
+        return; /* DumpBuf is not ready*/
+    }
+
+    dumpBufferIdxS                   = (seq - 1) % AUDIO_DUMP_SLOTS_CNT;
+    dumpBufferHeader                 = (stream_header_t *)s_dumpOutPool[dumpBufferIdxS];
+    dumpBufferHeader->clean_consumer = ASR_SKIPPED;
+}
+
+static void _preMarkcleanStreamConsumed(clean_consumer_t type)
+{
+    uint8_t dumpBufferIdx = 0;
+    stream_header_t *dumpBufferHeader;
+
+    if (s_dumpBufferProduceSeq == 0)
+    {
+        return; /* DumpBuf is not ready*/
+    }
+
+    dumpBufferIdx                    = (s_dumpBufferProduceSeq - 1) % AUDIO_DUMP_SLOTS_CNT;
+    dumpBufferHeader                 = (stream_header_t *)s_dumpOutPool[dumpBufferIdx];
+    dumpBufferHeader->clean_consumer = type;
+}
+
+/* Below Three APIs are called in ASR task content */
+void postMarkCleanStreamSKIPPED(uint32_t *seq, uint8_t cnt)
+{
+    uint8_t i, dumpBufferIdx = 0;
+    stream_header_t *dumpBufferHeader;
+
+    for (i = 0; i < cnt; i++)
+    {
+        if (seq[i] == 0)
+        {
+            continue; /* DumpBuf is not ready*/
+        }
+        else
+        {
+            dumpBufferIdx    = (seq[i] - 1) % AUDIO_DUMP_SLOTS_CNT;
+            dumpBufferHeader = (stream_header_t *)s_dumpOutPool[dumpBufferIdx];
+            assert((seq[i] - 1) == dumpBufferHeader->frame_seq);
+            dumpBufferHeader->clean_consumer = ASR_SKIPPED;
+        }
     }
 }
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 1 */
+
+void postMarkCleanStreamConsumedByWW(uint32_t *seq, uint8_t cnt)
+{
+    uint8_t i, dumpBufferIdx = 0;
+    stream_header_t *dumpBufferHeader;
+
+    for (i = 0; i < cnt; i++)
+    {
+        if (seq[i] == 0)
+        {
+            continue; /* DumpBuf is not ready*/
+        }
+        else
+        {
+            dumpBufferIdx    = (seq[i] - 1) % AUDIO_DUMP_SLOTS_CNT;
+            dumpBufferHeader = (stream_header_t *)s_dumpOutPool[dumpBufferIdx];
+            assert((seq[i] - 1) == dumpBufferHeader->frame_seq);
+            if (dumpBufferHeader->clean_consumer == ASR_UNKNOWN)
+            {
+                dumpBufferHeader->clean_consumer = ASR_WW_MODEL;
+            }
+            else
+            {
+                assert(0);
+            }
+        }
+    }
+}
+
+void postMarkCleanStreamConsumedByCMD(uint32_t *seq, uint8_t cnt)
+{
+    uint8_t i, dumpBufferIdx = 0;
+    stream_header_t *dumpBufferHeader;
+
+    for (i = 0; i < cnt; i++)
+    {
+        if (seq[i] == 0)
+        {
+            continue; /* DumpBuf is not ready*/
+        }
+        else
+        {
+            dumpBufferIdx    = (seq[i] - 1) % AUDIO_DUMP_SLOTS_CNT;
+            dumpBufferHeader = (stream_header_t *)s_dumpOutPool[dumpBufferIdx];
+            assert((seq[i] - 1) == dumpBufferHeader->frame_seq);
+            if (dumpBufferHeader->clean_consumer == ASR_UNKNOWN)
+            {
+                dumpBufferHeader->clean_consumer = ASR_CMD_MODEL;
+            }
+            else
+            {
+                assert(0);
+            }
+        }
+    }
+}
+
+static void _forwardAudioDumpBufferToOutput(const audio_processing_dev_t *dev)
+{
+    uint32_t i;
+    stream_header_t *dumpBufferHeader;
+    uint8_t dumpBufferIdx;
+
+    for (i = s_dumpBufferConsumeSeq; i < s_dumpBufferProduceSeq; i++)
+    {
+        dumpBufferIdx    = i % AUDIO_DUMP_SLOTS_CNT;
+        dumpBufferHeader = (stream_header_t *)s_dumpOutPool[dumpBufferIdx];
+
+        assert(dumpBufferHeader->frame_seq == i);
+
+        if (dumpBufferHeader->clean_consumer == ASR_SKIPPED || dumpBufferHeader->clean_consumer != ASR_UNKNOWN)
+        {
+            if (((i - s_dumpBufferConsumeSeq) & 0x03) ==
+                (AUDIO_DUMP_CHUNKS_CNT - 1)) /* accumulated AUDIO_DUMP_CHUNKS_CNT frames*/
+            {
+                if (dev->cap.callback != NULL)
+                {
+                    audio_processing_event_t audio_processing = {0};
+
+                    audio_processing.eventId   = kAudioProcessingEvent_Dump;
+                    audio_processing.eventInfo = kEventInfo_Remote;
+                    audio_processing.data      = s_dumpOutPool[s_dumpBufferConsumeSeq % AUDIO_DUMP_SLOTS_CNT];
+                    audio_processing.size      = dumpBufferHeader->frame_size_in_byte * AUDIO_DUMP_CHUNKS_CNT;
+                    audio_processing.copy      = 0;
+
+                    dev->cap.callback(dev, audio_processing, 0);
+                }
+
+                s_dumpBufferConsumeSeq += AUDIO_DUMP_CHUNKS_CNT;
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
+}
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
 
 hal_audio_processing_status_t audio_processing_afe_init(audio_processing_dev_t *dev,
                                                         audio_processing_dev_callback_t callback)
@@ -560,13 +761,13 @@ hal_audio_processing_status_t audio_processing_afe_init(audio_processing_dev_t *
 #if AFE_INPUT_MIC_SAMPLE_BYTES == 2
     afeConfig.dataInType = kAfeTypeInt16;
 #elif AFE_INPUT_MIC_SAMPLE_BYTES == 4
-    afeConfig.dataInType = kAfeTypeInt32;
+    afeConfig.dataInType      = kAfeTypeInt32;
 #endif /* AFE_INPUT_MIC_SAMPLE_BYTES */
 
 #if AFE_OUTPUT_SAMPLE_BYTES == 2
     afeConfig.dataOutType = kAfeTypeInt16;
 #elif AFE_OUTPUT_SAMPLE_BYTES == 4
-    afeConfig.dataOutType = kAfeTypeInt32;
+    afeConfig.dataOutType     = kAfeTypeInt32;
 #endif /* AFE_OUTPUT_SAMPLE_BYTES */
 
     afeConfig.mallocFunc = FWK_MALLOC;
@@ -617,6 +818,9 @@ hal_audio_processing_status_t audio_processing_afe_notify(const audio_processing
                                 event.speaker_audio.start_time);
             break;
 #endif /* !AMP_LOOPBACK_DISABLED */
+        case SET_AQT_STATUS:
+            s_AFE_ByPass = 0xFF & (uint32_t)event.data;
+            break;
 
         default:
             break;
@@ -634,6 +838,11 @@ hal_audio_processing_status_t audio_processing_afe_run(const audio_processing_de
     {
         sln_afe_status_t afeStatus = kAfeSuccess;
 
+        if (s_AFE_ByPass)
+        {
+            return error;
+        }
+
         void *afeMicIn    = s_afeMicIn;
         int16_t *afeAmpIn = NULL;
         void *afeCleanOut = NULL;
@@ -646,25 +855,35 @@ hal_audio_processing_status_t audio_processing_afe_run(const audio_processing_de
 #endif /* !AMP_LOOPBACK_DISABLED */
 
         /* Run mic streams through AFE */
-#ifdef ENABLE_DSMT_ASR
         afeStatus = SLN_AFE_Process_Audio(afeMicIn, afeAmpIn, &afeCleanOut);
         if (afeStatus != kAfeSuccess)
         {
             LOGE("[AFE] SLN_AFE_Process_Audio failed %d", afeStatus);
             error = kStatus_HAL_AudioProcessingError;
         }
-#else
-        /* VIT does not support AFE yet. */
-        afeCleanOut = afeMicIn;
-#endif /* ENABLE_DSMT_ASR */
 
-#if ENABLE_OUTPUT_DEV_AudioDump == 1
-        _forwardDataToAudioDump(dev,
-                                &afeMicIn[0], (AFE_INPUT_MIC_BUFFER_SIZE / AUDIO_PDM_MIC_COUNT),
-                                &afeMicIn[(AFE_INPUT_MIC_BUFFER_SIZE / AUDIO_PDM_MIC_COUNT)], (AFE_INPUT_MIC_BUFFER_SIZE / AUDIO_PDM_MIC_COUNT),
-                                afeAmpIn, AFE_INPUT_AMP_BUFFER_SIZE,
-                                afeCleanOut, AFE_OUTPUT_BUFFER_SIZE);
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 1 */
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+        static uint32_t s_skipFirstFrames = 0;
+        if (s_skipFirstFrames >= AUDIO_DUMP_SKIP_FIRST_FRAMES_CNT)
+        {
+            _packDataToAudioDumpBuf((void *)&afeMicIn[0], (AFE_INPUT_MIC_BUFFER_SIZE / AUDIO_PDM_MIC_COUNT),
+                                    (void *)&afeMicIn[(AFE_INPUT_MIC_BUFFER_SIZE / AUDIO_PDM_MIC_COUNT)],
+                                    (AFE_INPUT_MIC_BUFFER_SIZE / AUDIO_PDM_MIC_COUNT), (void *)afeAmpIn,
+                                    AFE_INPUT_AMP_BUFFER_SIZE, (void *)afeCleanOut, AFE_OUTPUT_BUFFER_SIZE);
+            _forwardAudioDumpBufferToOutput(dev);
+            assert(s_dumpBufferProduceSeq >= s_dumpBufferConsumeSeq);
+
+            if (s_dumpBufferProduceSeq - s_dumpBufferConsumeSeq > AUDIO_DUMP_SLOTS_CNT / 2)
+            {
+                LOGD("[DUMP] DELTA between P and C %d\r\n", s_dumpBufferProduceSeq - s_dumpBufferConsumeSeq);
+            }
+        }
+        else
+        {
+            s_skipFirstFrames++;
+        }
+
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
 
         /* Pass output of AFE to ASR.
          * Use asrSamplesStored to align with detected wake words. */
@@ -672,13 +891,12 @@ hal_audio_processing_status_t audio_processing_afe_run(const audio_processing_de
 
         if (s_utteranceLength != 0)
         {
-            uint32_t wakeWordLengthSamples = s_utteranceLength + (asrSamplesStored * AUDIO_PCM_SINGLE_CH_SMPL_COUNT);
-            uint32_t wakeWordLengthMs      = wakeWordLengthSamples / (AUDIO_PCM_SINGLE_CH_SMPL_COUNT / 10);
+            uint32_t wakeWordLengthMs = s_utteranceLength / (AUDIO_PCM_SINGLE_CH_SMPL_COUNT / 10);
 
-            LOGD("[AFE] Wake Word Length = %d [ms], %d(%d) [samples]", wakeWordLengthMs, wakeWordLengthSamples,
-                 asrSamplesStored);
+            LOGD("[AFE] Wake Word Length = %d [ms], %d [samples] buffered: %d [samples]", wakeWordLengthMs, s_utteranceLength,
+                 asrSamplesStored * AUDIO_PCM_SINGLE_CH_SMPL_COUNT);
 
-            afeStatus = SLN_AFE_Trigger_Found(wakeWordLengthSamples);
+            afeStatus = SLN_AFE_Trigger_Found(s_utteranceLength);
             if (afeStatus != kAfeSuccess)
             {
                 LOGE("[AFE] SLN_AFE_Trigger_Found failed %d", afeStatus);

@@ -437,20 +437,20 @@ static void _StartVoiceSesion()
 
 static void _SetPromptLanguage(asr_language_t language)
 {
-    static event_common_t s_LanguagePromptEvent;
+    static event_voice_t prompt_event;
     LOGD("[UI] Set prompt language %d", language);
 
     output_event_t output_event = {0};
 
     output_event.eventId   = kOutputEvent_OutputInputNotify;
-    output_event.data      = &s_LanguagePromptEvent;
+    output_event.data      = &prompt_event;
     output_event.copy      = 1;
-    output_event.size      = sizeof(s_LanguagePromptEvent);
+    output_event.size      = sizeof(prompt_event);
     output_event.eventInfo = kEventInfo_DualCore;
 
     /* Prepare message for MQS */
-    s_LanguagePromptEvent.eventBase.eventId = SET_MULTILINGUAL_CONFIG;
-    s_LanguagePromptEvent.data              = (void *)language;
+    prompt_event.event_base.eventId                = SET_MULTILINGUAL_CONFIG;
+    prompt_event.set_multilingual_config.languages = language;
 
     uint8_t fromISR = __get_IPSR();
     s_OutputDev_UiElevator.cap.callback(s_OutputDev_UiElevator.id, output_event, fromISR);
@@ -568,11 +568,11 @@ static void _StopFaceRec(int stop)
 
     if (stop)
     {
-        s_FaceRecEvent.oasisState.state = kOasisState_Stopped;
+        s_FaceRecEvent.oasisState.state = kOASISLiteState_Stopped;
     }
     else
     {
-        s_FaceRecEvent.oasisState.state = kOasisState_Running;
+        s_FaceRecEvent.oasisState.state = kOASISLiteState_Running;
     }
     uint8_t fromISR = __get_IPSR();
     s_OutputDev_UiElevator.cap.callback(s_OutputDev_UiElevator.id, output_event, fromISR);
@@ -680,7 +680,7 @@ void UI_ElevatorArrived_Callback(void)
     if (_NeedToAskRegister())
     {
         // gui_enable_confirm_cancel();
-        _SetVoiceModel(ASR_CMD_FLOOR_REGISTER, language, 0);
+        _SetVoiceModel(ASR_CMD_ELEVATOR, language, 0);
         PlayPrompt(PROMPT_REGISTER_SELECTION, 0);
         s_IsWaitingRegisterFloor = true;
         s_BlockDeleteUser        = true;
@@ -925,7 +925,7 @@ static hal_output_status_t _InferComplete_Vision(const output_dev_t *dev, void *
                                    pResult->face_recognized, pResult->face_id);
         }
 
-        if (pResult->face_recognized && pResult->face_id < 0)
+        if (pResult->face_recognized && pResult->face_id == INVALID_FACE_ID)
         {
             // new user
             s_Recognized = 1;
@@ -933,7 +933,7 @@ static hal_output_status_t _InferComplete_Vision(const output_dev_t *dev, void *
             gui_home_update_face_rec_state(kFaceRec_NewUser);
             _SessionTimer_Start();
         }
-        else if (pResult->face_recognized && pResult->face_id >= 0)
+        else if (pResult->face_recognized && pResult->face_id != INVALID_FACE_ID)
         {
             // face recognized (known user)
             // store the user's selection
@@ -1011,7 +1011,7 @@ static hal_output_status_t _InferComplete_Vision(const output_dev_t *dev, void *
                     default:
                         break;
                 }
-                _SetVoiceModel(ASR_CMD_FLOOR_REGISTER, language, 0);
+                _SetVoiceModel(ASR_CMD_ELEVATOR, language, 0);
                 s_BlockDeleteUser = true;
             }
 
@@ -1124,6 +1124,13 @@ static hal_output_status_t HAL_OutputDev_UiElevator_InferComplete(const output_d
     }
 
     LVGL_LOCK();
+
+#if AQT_TEST
+    if (source == kOutputAlgoSource_Voice)
+    {
+        _InferComplete_Voice(dev, inferResult);
+    }
+#else
     if (source == kOutputAlgoSource_Vision)
     {
         _InferComplete_Vision(dev, inferResult);
@@ -1132,6 +1139,8 @@ static hal_output_status_t HAL_OutputDev_UiElevator_InferComplete(const output_d
     {
         _InferComplete_Voice(dev, inferResult);
     }
+#endif /* AQT_TEST */
+
     LVGL_UNLOCK();
 
     return error;

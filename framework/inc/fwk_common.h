@@ -278,8 +278,8 @@ typedef struct _fwk_task_component
 {
     fwk_task_id_t managerId;
     unsigned int deviceId;
-    char *deviceName;
-    hal_device_config *configs;
+    const char *deviceName;
+    const hal_device_config *configs;
 } fwk_task_component_t;
 
 typedef struct _framework_response

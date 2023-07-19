@@ -1,10 +1,6 @@
----
-sidebar_position: 7
----
+# Voice algorithm manager
 
-# Voice Algorithm Manager
-
-Voice algorithm manager manages the voice algorithm HAL devices which can be registered into the system.
+The Voice algorithm manager manages the voice algorithm HAL devices that can be registered into the system.
 
 ## APIs
 
@@ -51,5 +47,5 @@ int FWK_VoiceAlgoManager_Deinit();
 ```
 
 ```{warning}
-Calling this function is unnecessary in most applications and should be used with caution.
+Calling this function is unnecessary in most applications and must be used with caution.
 ```

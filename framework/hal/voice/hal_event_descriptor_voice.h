@@ -32,6 +32,8 @@ typedef enum _event_voice_id
     SET_VOICE_DEMO,
     STOP_VOICE_CMD_SESSION,
     SET_VOICE_MODEL,
+    ASR_TO_AFE_PROCESSED,
+	SET_AQT_STATUS,
     LAST_VOICE_EVENT
 } event_voice_id_t;
 

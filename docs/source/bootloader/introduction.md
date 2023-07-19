@@ -7,7 +7,7 @@ sidebar_position: 1
 The Smart Lock project uses a "bootloader + main application" architecture to provide additional security and update-related functionality to the main application.
 The bootloader handles all boot-related tasks including, but not limited to:
 
-* Launching the main application and, if necessary, initializing peripherals
+* Launching the main application and, if necessary, initializing the peripherals
 * Firmware updates using either the Mass Storage Device (MSD), Over-the-Air, or Over-the-Wire update method
   * Protects against update failures by using a primary and backup application "flash bank"
 * Image certification/verification
@@ -20,7 +20,7 @@ unauthorized, and unsigned firmware binary flashed by a bad actor.
 It is essential in any production application that precautions be taken to ensure the integrity and stability of the firmware before, during, and after an update,
 and the bootloader application is simply one measure to help provide this assurance.
 
-The following sections will describe how to use many of the bootloader's primary features in order to assist developer's interested in understanding, utilizing, and expanding them.
+The following sections describes how to use many of the bootloader's primary features to assist developer's interested in understanding, utilizing, and expanding them.
 
 ## Application Banks
 
@@ -28,7 +28,7 @@ The bootloader file system uses dual application "banks" referred to as "Bank A"
 For example,
 if an application update is being flashed via MSD to the Bank A application bank, even if that update should fail midway through Bank B will still contain a fully operational backup.
 
-In the SLN-TLHMI-IOT, Bank A is located at `0x30100000` while Bank B is located at `0x31500000`.
+In the SLN-TLHMI-IOT, Bank A is at `0x30100000` while Bank B is at `0x31500000`.
 
 
 <!-- ![Configure App Bank in MCUXpresso IDE](configureAppBank.png) -->
@@ -54,7 +54,7 @@ As a result,
 it may be desirable to disable debug logging in production applications.
 To disable logging in the bootloader,
 simply build and run the bootloader in the `Release` build mode configuration.
-This can be done by right-clicking on the bootloader project in the `Project Explorer` view
+It can be done by right-clicking on the bootloader project in the `Project Explorer` view
 and navigating to `Build Configurations -> Set Active -> Release` as shown in the figure below:
 
 <!-- ![Set Build Config in MCUXpresso IDE](buildConfig.png) -->

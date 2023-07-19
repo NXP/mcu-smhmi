@@ -97,9 +97,6 @@ static char s_UserName[64];
 static char *s_UserNameReference = NULL;
 static uint16_t s_blockingList   = 0;
 
-/*dtc buffer for inference engine optimization*/
-FWKDATA static uint8_t s_DTCOPBuf[DTC_OPTIMIZE_BUFFER_SIZE];
-
 #if OASIS_STATIC_MEM_BUFFER
 __attribute__((section(".bss.$SRAM_OCRAM_CACHED"), aligned(64))) uint8_t g_OasisMemPool[OASIS_STATIC_MEM_POOL];
 #endif
@@ -1085,7 +1082,7 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisLite_Init(vision_algo_dev_t *de
 #ifdef SMART_LOCK_2D
     s_OasisLite.config.imgType = OASIS_IMG_TYPE_IR_RGB_DUAL;
 #else
-    s_OasisLite.config.imgType     = OASIS_IMG_TYPE_RGB_IR_DUAL;
+    s_OasisLite.config.imgType = OASIS_IMG_TYPE_RGB_IR_DUAL;
 #endif
     s_OasisLite.config.minFace              = OASIS_DETECT_MIN_FACE;
     s_OasisLite.config.cbs.EvtCb            = _oasis_lite_EvtCb;
@@ -1106,7 +1103,7 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisLite_Init(vision_algo_dev_t *de
     s_OasisLite.config.size            = 0;
     s_OasisLite.config.memPool         = NULL;
     s_OasisLite.config.fastMemSize     = DTC_OPTIMIZE_BUFFER_SIZE;
-    s_OasisLite.config.fastMemBuf      = (char *)s_DTCOPBuf;
+    s_OasisLite.config.fastMemBuf      = (char *)g_DTCOPBuf;
 
     s_OasisLite.run_flag    = OASIS_DET_REC;
     s_OasisLite.prevRunFlag = OASIS_RUN_FLAG_NUM;
@@ -1570,11 +1567,11 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisLite_InputNotify(const vision_a
             event_face_rec_t oasisEvent;
             if (s_OasisLite.run_flag == OASIS_RUN_FLAG_STOP)
             {
-                oasisEvent.oasisState.state = kOasisState_Stopped;
+                oasisEvent.oasisState.state = kOASISLiteState_Stopped;
             }
             else
             {
-                oasisEvent.oasisState.state = kOasisState_Running;
+                oasisEvent.oasisState.state = kOASISLiteState_Running;
             }
 
             LOGI("[VALGO] get oasis state %d.", oasisEvent.oasisState.state);
@@ -1587,9 +1584,9 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisLite_InputNotify(const vision_a
             event_face_rec_t eventOasis, oasisResponse;
             eventOasis = *(event_face_rec_t *)data;
 
-            if (eventOasis.oasisState.state == kOasisState_Stopped)
+            if (eventOasis.oasisState.state == kOASISLiteState_Stopped)
             {
-                oasisResponse.oasisState.state = kOasisState_Stopped;
+                oasisResponse.oasisState.state = kOASISLiteState_Stopped;
 
                 _set_blocker_bit(kOasisBlockingList_UserInput);
 
@@ -1606,9 +1603,9 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisLite_InputNotify(const vision_a
                     _oasis_lite_dev_response(eventBase, &oasisResponse, kEventStatus_Error, true);
                 }
             }
-            else if (eventOasis.oasisState.state == kOasisState_Running)
+            else if (eventOasis.oasisState.state == kOASISLiteState_Running)
             {
-                oasisResponse.oasisState.state = kOasisState_Running;
+                oasisResponse.oasisState.state = kOASISLiteState_Running;
 
                 /* ignore if already started */
                 if (s_OasisLite.run_flag == OASIS_RUN_FLAG_STOP)
@@ -1618,7 +1615,7 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisLite_InputNotify(const vision_a
                     oasis_status_t status = _oasis_start(receiver);
                     if (status == kOasis_Failed)
                     {
-                        oasisResponse.oasisState.state = kOasisState_Stopped;
+                        oasisResponse.oasisState.state = kOASISLiteState_Stopped;
                         _oasis_lite_dev_response(eventBase, &oasisResponse, kEventStatus_Error, true);
                     }
                     else

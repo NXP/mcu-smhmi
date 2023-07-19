@@ -108,7 +108,10 @@ static void _CameraReceiverCallback(camera_receiver_handle_t *handle, status_t s
     if (dev->cap.callback != NULL)
     {
         uint8_t fromISR = __get_IPSR();
-        dev->cap.callback(dev, kCameraEvent_SendFrame, dev->cap.param, fromISR);
+        camera_event_t event;
+        event.eventId   = kCameraEvent_SendFrame;
+        event.eventInfo = kEventInfo_Local;
+        dev->cap.callback(dev, event, dev->cap.param, fromISR);
     }
 }
 

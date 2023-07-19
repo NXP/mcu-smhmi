@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # Vision Algorithm Devices
 
 The Vision Algorithm HAL device type represents an abstraction for computer vision algorithms which are used for analysis of digital images, videos, and other visual inputs.

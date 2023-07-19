@@ -94,7 +94,7 @@ status_t WiFi_SetCredentials(wifi_cred_t *cred)
 
         if (status == kStatus_Success)
         {
-            uint32_t len = sizeof(wifi_info_t);
+            unsigned int len = sizeof(wifi_info_t);
             statusFlash  = FWK_Flash_Save(WIFI_INFO_FILE, &s_wifiInfo, len);
 
             if (statusFlash != kStatus_HAL_FlashSuccess)
@@ -149,7 +149,7 @@ status_t WiFi_LoadCredentials(void)
 
     if ((statusFlash == kStatus_HAL_FlashSuccess) || (statusFlash == kStatus_HAL_FlashDirExist))
     {
-        uint32_t len  = sizeof(wifi_info_t);
+        unsigned int len = sizeof(wifi_info_t);
         statusFlash   = FWK_Flash_Read(WIFI_INFO_FILE, &s_wifiInfo, 0, &len);
         s_wifiCredRef = NULL;
 

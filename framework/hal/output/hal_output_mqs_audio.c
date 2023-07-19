@@ -217,7 +217,8 @@ static void HAL_OutputDev_MqsAudio_MsgHandle(fwk_message_t *pMsg, fwk_task_data_
     }
 }
 
-#define MQS_SOUND_PLAY_FUNC(promptId, buffer, size, asrEnabled) _postSoundPlayRequest((promptId), (buffer), (size), (asrEnabled))
+#define MQS_SOUND_PLAY_FUNC(promptId, buffer, size, asrEnabled) \
+    _postSoundPlayRequest((promptId), (buffer), (size), (asrEnabled))
 #else
 #define MQS_SOUND_PLAY_FUNC(promptId, buffer, size, asrEnabled) _PlaySound((promptId), (buffer), (size), (asrEnabled))
 #endif
@@ -270,7 +271,7 @@ static void _ConfigMqs(void)
  */
 static float _AdaptVolume(uint32_t volume)
 {
-    assert(volume >= 0 && volume <= 100);
+    assert(volume <= 100);
 
     volume /= 10;
 
@@ -443,7 +444,7 @@ static void _PlaySound(int PromptId, const uint8_t *buffer, int32_t size, uint8_
 #if !AMP_LOOPBACK_DISABLED
         if (asrEnabled == 1)
         {
-        /* Notify AFE in order to perform AEC */
+            /* Notify AFE in order to perform AEC */
             _SpeakerToAfeNotify((int16_t *)s_MqsAfeFeedback[mqsFeedbackPoolSlotIdx], audioChunkSize / 2);
             mqsFeedbackPoolSlotIdx = (mqsFeedbackPoolSlotIdx + 1) % MQS_FEEDBACK_CHUNK_CNT;
         }

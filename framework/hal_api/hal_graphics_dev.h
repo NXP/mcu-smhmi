@@ -78,6 +78,10 @@ typedef struct
         const gfx_dev_t *dev, gfx_surface_t *pSrc, gfx_surface_t *pDst, gfx_rotate_config_t *pRotate, flip_mode_t flip);
     /* draw rect in overlay surface */
     int (*drawRect)(const gfx_dev_t *dev, gfx_surface_t *pOverlay, int x, int y, int w, int h, int color);
+    /* draw point in overlay surface */
+    int (*drawPoint)(const gfx_dev_t *dev, gfx_surface_t *pOverlay, int points_x, int points_y, int radius, int color);
+    /* draw a line in overlay surface */
+    int (*drawLine)(const gfx_dev_t *dev, gfx_surface_t *pOverlay, int left_x, int top_y, int right_x, int bottom_y, int line_width, int color);
     /* draw picture in overlay surface */
     int (*drawPicture)(
         const gfx_dev_t *dev, gfx_surface_t *pOverlay, int x, int y, int w, int h, int alpha, const char *pIcon);

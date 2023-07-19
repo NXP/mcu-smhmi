@@ -77,7 +77,7 @@ hal_display_status_t HAL_DisplayDev_LVGLIMG_Start(const display_dev_t *dev)
 
 hal_display_status_t HAL_DisplayDev_LVGLIMG_Blit(const display_dev_t *dev, void *frame, int width, int height)
 {
-    hal_display_status_t ret = kStatus_HAL_DisplaySuccess;
+    hal_display_status_t ret = kStatus_HAL_DisplayRequestFrame;
     LOGI("++HAL_DisplayDev_LVGLImg_Blit");
     /* Show the new frame. */
     void *lcdFrameAddr = s_LcdBuffer[0];

@@ -26,6 +26,9 @@ KEEP_RAW_FILES = False
 STOP_PROCESS = False
 SER = None
 MICS_CNT = '3'
+FRAME_SAMPLE_CNT = 160
+FRAME_HEADER_LEN = 8
+MAX_LENGTH_CONVERT_BYTE = 3 * 1024 * 1024 * 1024 #3GB
 
 def signal_handler(sig, frame):
     global STOP_PROCESS
@@ -51,7 +54,7 @@ def wait_cancel_from_user():
     SER.cancel_read()
     print("--> wait_cancel_from_user task done")
 
-def capture_g_afe(mic_sample_size, dump_type):
+def capture_g_afe(mic_sample_size):
     global STOP_PROCESS
 
     while(1):
@@ -64,41 +67,30 @@ def capture_g_afe(mic_sample_size, dump_type):
             break
 
         try:
-            if dump_type == "AFE":
-                if STOP_PROCESS == False:
-                    ser_data = SER.read(480 * mic_sample_size)
-                    mic1_file.write(ser_data)
+            if STOP_PROCESS == False:
+                ser_data = SER.read(FRAME_HEADER_LEN)
+                runtime_info_file.write(ser_data)
+            if STOP_PROCESS == False:
+                ser_data = SER.read(FRAME_SAMPLE_CNT * mic_sample_size)
+                mic1_file.write(ser_data)
 
-                if STOP_PROCESS == False:
-                    ser_data = SER.read(480 * mic_sample_size)
-                    mic2_file.write(ser_data)
+            if STOP_PROCESS == False:
+                ser_data = SER.read(FRAME_SAMPLE_CNT * mic_sample_size)
+                mic2_file.write(ser_data)
 
-                if STOP_PROCESS == False:
-                    if MICS_CNT == '3':
-                        ser_data = SER.read(480 * mic_sample_size)
-                        mic3_file.write(ser_data)
+            if STOP_PROCESS == False:
+                if MICS_CNT == '3':
+                    ser_data = SER.read(FRAME_SAMPLE_CNT * mic_sample_size)
+                    mic3_file.write(ser_data)
 
-                if STOP_PROCESS == False:
-                    ser_data = SER.read(480 * 2)
-                    amp_file.write(ser_data)
+            if STOP_PROCESS == False:
+                ser_data = SER.read(FRAME_SAMPLE_CNT * 2)
+                amp_file.write(ser_data)
 
-                if STOP_PROCESS == False:
-                    ser_data = SER.read(480 * 2)
-                    clean_audio_file.write(ser_data)
+            if STOP_PROCESS == False:
+                ser_data = SER.read(FRAME_SAMPLE_CNT * 2)
+                clean_audio_file.write(ser_data)
 
-            elif dump_type == "ASR":
-                if STOP_PROCESS == False:
-                    ser_data = SER.read(480 * 2)
-                    asr_file.write(ser_data)
-
-            elif dump_type == "ASR2":
-                if STOP_PROCESS == False:
-                    ser_data = SER.read(480 * 2)
-                    asr_file.write(ser_data)
-
-                if STOP_PROCESS == False:
-                    ser_data = SER.read(480 * 2)
-                    amp_file.write(ser_data)
 
             if STOP_PROCESS == False:
                 if not ser_data:
@@ -110,15 +102,33 @@ def capture_g_afe(mic_sample_size, dump_type):
             STOP_PROCESS = True
 
 def convert_raw_to_wav(file_path, sample_size=2):
-    new_file_path = file_path[:-3] + "wav"
-
     with open(file_path, "rb") as inp_f:
-        data = inp_f.read()
-        with wave.open(new_file_path, "wb") as out_f:
-            out_f.setnchannels(1)
-            out_f.setsampwidth(sample_size) # number of bytes
-            out_f.setframerate(16000)
-            out_f.writeframesraw(data)
+        data_size = os.path.getsize(file_path)
+        datas = inp_f.read()
+
+        if data_size <= MAX_LENGTH_CONVERT_BYTE:
+            new_file_path = file_path[:-3] + "wav"
+            with wave.open(new_file_path, "wb") as out_f:
+                out_f.setnchannels(1)
+                out_f.setsampwidth(sample_size) # number of bytes
+                out_f.setframerate(16000)
+                out_f.writeframesraw(datas)
+        else:
+            data_convert_length = 0
+            dump_wav_cnt = 1
+            while(data_convert_length < data_size):
+                new_file_path = file_path[:-4] + "_" + str(dump_wav_cnt) + ".wav"
+                with wave.open(new_file_path, "wb") as out_f:
+                    if data_convert_length + MAX_LENGTH_CONVERT_BYTE >= data_size:
+                        data = datas[data_convert_length:]
+                    else:
+                        data = datas[data_convert_length:data_convert_length+MAX_LENGTH_CONVERT_BYTE]
+                    out_f.setnchannels(1)
+                    out_f.setsampwidth(sample_size) # number of bytes
+                    out_f.setframerate(16000)
+                    out_f.writeframesraw(data)
+                    dump_wav_cnt += 1
+                    data_convert_length += MAX_LENGTH_CONVERT_BYTE
 
     if not KEEP_RAW_FILES:
         os.remove(file_path)
@@ -126,11 +136,11 @@ def convert_raw_to_wav(file_path, sample_size=2):
 
 """ Parse the provided parameters """
 parser = argparse.ArgumentParser()
-parser.add_argument('-m', '--microphones', type=int, required=True, choices=[2, 3], help="Set the number of microphones.")
+parser.add_argument('-m', '--microphones', type=int, default=2, choices=[2, 3], help="Set the number of microphones.")
 parser.add_argument('-mss', '--mic-sample-size', type=int, default=4, choices=[2, 4], help="Set microphone one sample's size in bytes.")
-parser.add_argument('-t', '--type', type=str, default="AFE", choices=["AFE", "ASR", "ASR2"], help="Dump type: AFE (mics, amp, clean), ASR (clean), ASR2 (clean+amp)")
 parser.add_argument('-p', '--port', type=str, required=True, help="Set the port the device is connected. Example for Window COM3, for Linux /dev/ttyACM3.")
 parser.add_argument('-f', '--folder', type=str, required=True, help="Folder where to save audio files. Note: overwrite existing folder.")
+parser.add_argument('-t', '--type', type=str, required=False, help="Just keep this parameter for back compatible. it is not used any more.")
 args = parser.parse_args()
 
 # Get the Number of microphones
@@ -156,23 +166,16 @@ MIC2_STREAM_PATH                = test_name + "/" + test_name + "_mic2.raw"
 MIC3_STREAM_PATH                = test_name + "/" + test_name + "_mic3.raw"
 AMP_STREAM_PATH                 = test_name + "/" + test_name + "_amp.raw"
 CLEAN_STREAM_PATH               = test_name + "/" + test_name + "_clean_processed_audio.raw"
-ASR_STREAM_PATH                 = test_name + "/" + test_name + "_asr.raw"
+AUDIO_RUNTIME_INFO              = test_name + "/" + test_name + "_runtime_info.bin"
 
-if (args.type == "AFE"):
-    mic1_file        = open(MIC1_STREAM_PATH,  "wb")
-    mic2_file        = open(MIC2_STREAM_PATH,  "wb")
-    if MICS_CNT == '3':
-        mic3_file = open(MIC3_STREAM_PATH, "wb")
-    amp_file         = open(AMP_STREAM_PATH,   "w+b")
-    clean_audio_file = open(CLEAN_STREAM_PATH, "wb")
-elif (args.type == "ASR"):
-    asr_file        = open(ASR_STREAM_PATH,  "wb")
-elif (args.type == "ASR2"):
-    asr_file        = open(ASR_STREAM_PATH,  "wb")
-    amp_file        = open(AMP_STREAM_PATH,  "wb")
-else:
-    print("[ERROR] " + args.type + " NOT supported")
-    sys.exit(1)
+
+mic1_file        = open(MIC1_STREAM_PATH,  "wb")
+mic2_file        = open(MIC2_STREAM_PATH,  "wb")
+if MICS_CNT == '3':
+    mic3_file = open(MIC3_STREAM_PATH, "wb")
+amp_file         = open(AMP_STREAM_PATH,   "w+b")
+clean_audio_file = open(CLEAN_STREAM_PATH, "wb")
+runtime_info_file = open(AUDIO_RUNTIME_INFO, "wb")
 
 
 # Get the Serial Port to the device
@@ -203,35 +206,26 @@ except:
 # Start recording. User has to type "stop" to cancel the process
 stop_thread = threading.Thread(target=wait_cancel_from_user, daemon=True)
 stop_thread.start()
-capture_g_afe(args.mic_sample_size, args.type)
+capture_g_afe(args.mic_sample_size)
 stop_thread.join(timeout=0.1)
 
 # Close the files
-if (args.type == "AFE"):
-    mic1_file.close()
-    mic2_file.close()
-    if MICS_CNT == '3':
-        mic3_file.close()
-    amp_file.close()
-    clean_audio_file.close()
-elif (args.type == "ASR"):
-    asr_file.close()
-elif (args.type == "ASR2"):
-    asr_file.close()
-    amp_file.close()
+mic1_file.close()
+mic2_file.close()
+if MICS_CNT == '3':
+    mic3_file.close()
+amp_file.close()
+clean_audio_file.close()
+runtime_info_file.close()
+
 
 # Convert RAW files to WAV files
 if CONVERT_RAW_TO_WAV:
     print("--> Converting RAW to WAV")
-if (args.type == "AFE"):
-    convert_raw_to_wav(MIC1_STREAM_PATH, args.mic_sample_size)
-    convert_raw_to_wav(MIC2_STREAM_PATH, args.mic_sample_size)
-    if MICS_CNT == '3':
-        convert_raw_to_wav(MIC3_STREAM_PATH, args.mic_sample_size)
-    convert_raw_to_wav(AMP_STREAM_PATH)
-    convert_raw_to_wav(CLEAN_STREAM_PATH)
-elif (args.type == "ASR"):
-    convert_raw_to_wav(ASR_STREAM_PATH)
-elif (args.type == "ASR2"):
-    convert_raw_to_wav(ASR_STREAM_PATH)
-    convert_raw_to_wav(AMP_STREAM_PATH)
+
+convert_raw_to_wav(MIC1_STREAM_PATH, args.mic_sample_size)
+convert_raw_to_wav(MIC2_STREAM_PATH, args.mic_sample_size)
+if MICS_CNT == '3':
+    convert_raw_to_wav(MIC3_STREAM_PATH, args.mic_sample_size)
+convert_raw_to_wav(AMP_STREAM_PATH)
+convert_raw_to_wav(CLEAN_STREAM_PATH)

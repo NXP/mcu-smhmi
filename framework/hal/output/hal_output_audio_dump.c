@@ -448,10 +448,17 @@ static usb_status_t USB_DeviceCallback(usb_device_handle handle, uint32_t event,
 hal_output_status_t audio_dump(const output_dev_t *dev, void *data)
 {
     msg_payload_t *paudio_msg = (msg_payload_t *)data;
+    usb_status_t status;
+    unsigned int seq = 0;
     if (startCapture == CAPTURE_START)
     {
-        USB_DeviceCdcAcmSend(s_UsbDeviceCDC.cdcAcmHandle, s_UsbDeviceCDC.bulkInEndpoint, paudio_msg->data,
+        status = USB_DeviceCdcAcmSend(s_UsbDeviceCDC.cdcAcmHandle, s_UsbDeviceCDC.bulkInEndpoint, paudio_msg->data,
                              paudio_msg->size);
+        if(status != kStatus_USB_Success)
+        {
+            seq = *(uint32_t *)(paudio_msg->data + 4);
+            LOGE("Frame: %d lost(%d)!!!\r\n", seq, status);
+        }
     }
     return 0;
 }

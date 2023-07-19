@@ -1,0 +1,22 @@
+NXP Software Content Register
+
+Release Name : VIT_v4.8.0
+Description: Cortex-M7 Voice Intelligent Technology library
+Version: 4.8.0
+
+Outgoing License : LA_OPT_NXP_Software_License v44 March 2023 - Additional distribution license granted - Section 2.3 applies
+License file : LICENSE.txt
+Author: NXP - VATEC
+Format: Precompiled libraries, header files
+
+Name: CMSIS
+Version: 5.6.0
+Outgoing License: Apache License 2.0
+License File: CMSIS_LICENSE.txt
+Format: Binary
+Description: Vendor-independent hardware
+abstraction layer for microcontrollers that are
+based on Arm Cortex processors, distributed by
+ARM. cores
+Origin: ARM (Apache-2.0)
+https://github.com/ARM-software/CMSIS_5/releases/tag/5.6.0

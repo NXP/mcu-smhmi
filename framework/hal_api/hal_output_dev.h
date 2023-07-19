@@ -46,6 +46,7 @@ typedef enum _output_event_id
     kOutputEvent_VisionAlgoInputNotify = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_Output, 2),
     kOutputEvent_VoiceAlgoInputNotify  = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_Output, 3),
     kOutputEvent_OutputInputNotify     = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_Output, 4),
+    kOutputEvent_DisplayInputNotify    = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_Output, 5),
 
     kOutputEvent_Count
 } output_event_id_t;
@@ -54,8 +55,8 @@ typedef enum _output_event_id
 typedef struct _output_event
 {
     /* Eventid from the list above.*/
-	output_event_id_t eventId;
-    event_info_t     eventInfo;
+    output_event_id_t eventId;
+    event_info_t eventInfo;
     /* Pointer to a struct of data that needs to be forwarded. */
     void *data;
     /* Size of the struct that needs to be forwarded. */
@@ -106,7 +107,6 @@ typedef struct _output_dev_attr_t
         void *reserve;
     };
 } output_dev_attr_t;
-
 
 /*! @brief Operation that needs to be implemented by an output device */
 typedef struct _output_dev_operator

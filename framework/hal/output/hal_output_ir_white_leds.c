@@ -196,6 +196,7 @@ static int _init_led_pwm(led_type_t led)
     pwmSignal[0].dutyCyclePercent = 0;
     pwmSignal[0].deadtimeValue    = deadTimeVal;
     pwmSignal[0].faultState       = kPWM_PwmFaultState1;
+    pwmSignal[0].pwmchannelenable = true;
 
     PWM_SetupPwm(s_LedPwms[led].baseAddr, s_LedPwms[led].submodule, pwmSignal, 1, kPWM_SignedCenterAligned,
                  pwmFrequencyInHz, pwmSourceClockInHz); /* Set the load okay bit for specified submodule to
@@ -289,117 +290,50 @@ static hal_output_status_t HAL_OutputDev_IrWhiteLeds_InputNotify(const output_de
         case kEventID_GetIRLedBrightness:
         {
             ir_led_event_t irLedBrightness;
-            irLedBrightness.brightness = HAL_OutputDev_SmartLockConfig_GetIrPwm();
-            LOGD("IR LED Brightness is currently set to: %d", irLedBrightness.brightness);
+            irLedBrightness.brightness = s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value;
+            // LOGD("IR LED Brightness is currently set to: %d", irLedBrightness.brightness);
             if (eventBase.respond != NULL)
             {
                 _HAL_OutputDev_IrWhiteLeds_Response(eventBase, &irLedBrightness, eventResponse, true);
             }
         }
         break;
+
         case kEventID_SetIRLedBrightness:
         {
             event_common_t event = *(event_common_t *)data;
-            error |= set_led_brightness(kLEDType_Ir, event.irLed.brightness);
+            error                = set_led_brightness(kLEDType_Ir, event.irLed.brightness);
             if (!error)
             {
-                if (kSLNConfigStatus_Success != HAL_OutputDev_SmartLockConfig_SetIrPwm(event.irLed.brightness))
-                {
-                    error         = kStatus_HAL_OutputError;
-                    eventResponse = kEventStatus_Error;
-                }
-                else
-                {
-                    s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value = event.irLed.brightness;
-                }
+                // LOGD("IR LED Brightness is currently set to: %d", event.irLed.brightness);
+                s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value = event.irLed.brightness;
+                _HAL_OutputDev_IrWhiteLeds_Response(eventBase, &event.irLed.brightness, eventResponse, true);
             }
-            else
-            {
-                eventResponse = kEventStatus_WrongParam;
-            }
-
-            _HAL_OutputDev_IrWhiteLeds_Response(eventBase, &event.irLed.brightness, eventResponse, true);
         }
         break;
 
         case kEventID_GetWhiteLedBrightness:
         {
             white_led_event_t whiteLedBrightness;
-            whiteLedBrightness.brightness = HAL_OutputDev_SmartLockConfig_GetWhitePwm();
-            LOGD("White LED Brightness is currently set to: %d", whiteLedBrightness.brightness);
+            whiteLedBrightness.brightness = s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value;
+            // LOGD("White LED Brightness is currently set to: %d", whiteLedBrightness.brightness);
             _HAL_OutputDev_IrWhiteLeds_Response(eventBase, &whiteLedBrightness, eventResponse, true);
         }
         break;
+
         case kEventID_SetWhiteLedBrightness:
         {
             event_common_t event = *(event_common_t *)data;
             error |= set_led_brightness(kLEDType_White, event.whiteLed.brightness);
             if (!error)
             {
-                if (kSLNConfigStatus_Success != HAL_OutputDev_SmartLockConfig_SetWhitePwm(event.whiteLed.brightness))
-                {
-                    error         = kStatus_HAL_OutputError;
-                    eventResponse = kEventStatus_Error;
-                }
-                else
-                {
-                    s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value = event.whiteLed.brightness;
-                }
+                // LOGD("White LED Brightness is currently set to: %d", event.whiteLed.brightness);
+                s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value = event.whiteLed.brightness;
+                _HAL_OutputDev_IrWhiteLeds_Response(eventBase, &event.whiteLed.brightness, eventResponse, true);
             }
-            else
-            {
-                eventResponse = kEventStatus_WrongParam;
-            }
+        }
+        break;
 
-            _HAL_OutputDev_IrWhiteLeds_Response(eventBase, &event.whiteLed.brightness, eventResponse, true);
-        }
-        break;
-        case kEventID_ControlIRLedBrightness:
-        {
-            ir_led_event_t irLedBrightness;
-            irLedBrightness.brightness = s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value;
-            event_common_t event       = *(event_common_t *)data;
-            ir_led_event_t targetIrLedBrightness;
-            if (event.brightnessControl.enable == true)
-            {
-                targetIrLedBrightness.brightness =
-                    _getTargetPwm(kLEDType_Ir, irLedBrightness.brightness, event.brightnessControl.direction);
-            }
-            else
-            {
-                targetIrLedBrightness.brightness = HAL_OutputDev_SmartLockConfig_GetIrPwm();
-            }
-            LOGD("IR LED PWM will be adjusted to: %d", targetIrLedBrightness.brightness);
-            error |= set_led_brightness(kLEDType_Ir, targetIrLedBrightness.brightness);
-            if (!error)
-            {
-                s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value = targetIrLedBrightness.brightness;
-            }
-        }
-        break;
-        case kEventID_ControlWhiteLedBrightness:
-        {
-            white_led_event_t whiteLedBrightness;
-            whiteLedBrightness.brightness = s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value;
-            event_common_t event          = *(event_common_t *)data;
-            white_led_event_t targetWhiteLedBrightness;
-            if (event.brightnessControl.enable == true)
-            {
-                targetWhiteLedBrightness.brightness =
-                    _getTargetPwm(kLEDType_White, whiteLedBrightness.brightness, event.brightnessControl.direction);
-            }
-            else
-            {
-                targetWhiteLedBrightness.brightness = HAL_OutputDev_SmartLockConfig_GetWhitePwm();
-            }
-            LOGD("WHITE LED PWM will be adjusted to: %d", targetWhiteLedBrightness.brightness);
-            error |= set_led_brightness(kLEDType_White, targetWhiteLedBrightness.brightness);
-            if (!error)
-            {
-                s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value = targetWhiteLedBrightness.brightness;
-            }
-        }
-        break;
         default:
             return error;
             break;
@@ -419,10 +353,10 @@ static hal_output_status_t HAL_OutputDev_IrWhiteLeds_Start(const output_dev_t *d
     }
 
     /* TODO: Get configs by name using configs stored via json */
-    s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value = HAL_OutputDev_SmartLockConfig_GetWhitePwm();
+    s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value = 0; // HAL_OutputDev_SmartLockConfig_GetWhitePwm();
     set_led_brightness(kLEDType_White, s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value);
 
-    s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value = HAL_OutputDev_SmartLockConfig_GetIrPwm();
+    s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value = 0; // HAL_OutputDev_SmartLockConfig_GetIrPwm();
     set_led_brightness(kLEDType_Ir, s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value);
 
     return error;

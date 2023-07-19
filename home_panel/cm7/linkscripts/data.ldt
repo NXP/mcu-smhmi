@@ -1,0 +1,12 @@
+ <#if memory.name=="SRAM_ITC_cm7">
+        *flexspi_nor_flash_ops.o(.text*)
+        *fsl_flexspi.o(.text*)
+        *sln_flash.o(.text*)
+        *hal_audio_processing_afe.o(.text*)
+        *sln_afe.o(.text*)
+        *libVoiceSeekerLight.a:(.text*)
+        
+        /* FreeRTOS Debug Config, Move from Flash to here*/
+        *tasks.o(.rodata*) 
+</#if>
+

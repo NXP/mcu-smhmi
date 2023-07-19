@@ -636,7 +636,7 @@ static hal_display_status_t HAL_DisplayDev_UsbCdc_Start(const display_dev_t *dev
 
 static hal_display_status_t HAL_DisplayDev_UsbCdc_Blit(const display_dev_t *dev, void *frame, int width, int height)
 {
-    hal_display_status_t ret = kStatus_HAL_DisplaySuccess;
+    hal_display_status_t ret = kStatus_HAL_DisplayRequestFrame;
     usb_status_t error       = kStatus_USB_Error;
     uint32_t size            = (dev->cap.height * dev->cap.pitch);
 

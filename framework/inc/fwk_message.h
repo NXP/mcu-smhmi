@@ -27,6 +27,8 @@ typedef enum _fwk_message_id
 {
     /* camera task send message */
     kFWKMessageID_CameraDequeue,
+    kFWKMessageID_CameraRemoteDequeue,
+    kFWKMessageID_CameraRemoteDequeueResponse,
     kFWKMessageID_CameraSet,
 
     /* display task send message */
@@ -120,6 +122,7 @@ typedef struct
     int devId;
     unsigned char freeAfterConsumed;
     void *data;
+    void *data_marks;
     unsigned int size;
     union
     {

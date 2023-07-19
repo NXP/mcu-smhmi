@@ -19,6 +19,7 @@
 /* local voice includes */
 #include "IndexCommands.h"
 #include "local_voice_model.h"
+#include "hal_audio_defs.h"
 
 #if ENABLE_COFFEE_MACHINE
 #define CURRENT_DEMO ASR_CMD_COFFEE_MACHINE
@@ -33,11 +34,9 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-#define NUM_SAMPLES_AFE_OUTPUT (480)
-#define SAMPLE_SIZE_AFE_OUTPUT (2)
 
 #define WAKE_WORD_MEMPOOL_SIZE    (60 * 1024)
-#define CN_WAKE_WORD_MEMPOOL_SIZE (90 * 1024)
+#define CN_WAKE_WORD_MEMPOOL_SIZE (105 * 1024)
 #define COMMAND_MEMPOOL_SIZE      (150 * 1024)
 
 /* Groups: base, ww, voice commands etc. */
@@ -46,20 +45,6 @@
 #if NUM_GROUPS > MAX_GROUPS
 #error "NUM_GROUPS must be smaller than MAX_GROUPS. Increase MAX_GROUPS."
 #endif /* NUM_GROUPS > MAX_GROUPS */
-
-#if ENABLE_OUTPUT_DEV_AudioDump == 2
-#define AUDIO_DUMP_SLOTS_CNT 10
-#define AUDIO_DUMP_SLOT_SIZE (NUM_SAMPLES_AFE_OUTPUT * SAMPLE_SIZE_AFE_OUTPUT)
-
-#if SELF_WAKE_UP_PROTECTION
-#define AUDIO_DUMP_BUFFER_CNT 2
-#else
-#define AUDIO_DUMP_BUFFER_CNT 1
-#endif /* SELF_WAKE_UP_PROTECTION */
-
-/* Skip first frames of audio dump to be sure that audio dump task is ready. */
-#define AUDIO_DUMP_SKIP_FIRST_FRAMES_CNT 100
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 2 */
 
 typedef enum _cmd_state
 {
@@ -100,6 +85,7 @@ typedef struct _asr_voice_param
 static asr_voice_param_t s_AsrEngine;
 
 static void voice_algo_asr_result_notify(asr_inference_result_t *result, uint32_t utteranceLength);
+static void voice_algo_asr_run_notify(hal_valgo_status_t status);
 
 typedef enum _asr_session
 {
@@ -116,75 +102,16 @@ static bool s_afeCalibrated       = false;
 /* Performance Statistics. */
 extern volatile uint32_t s_afeDataProcessed;
 
-#if ENABLE_OUTPUT_DEV_AudioDump == 2
-AT_NONCACHEABLE_SECTION_ALIGN_SDRAM(static uint8_t s_dumpOutPool[AUDIO_DUMP_SLOTS_CNT][AUDIO_DUMP_BUFFER_CNT][AUDIO_DUMP_SLOT_SIZE], 4);
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 2 */
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+extern void postMarkCleanStreamSKIPPED(uint32_t *seq, uint8_t cnt);
+extern void postMarkCleanStreamConsumedByWW(uint32_t *seq, uint8_t cnt);
+extern void postMarkCleanStreamConsumedByCMD(uint32_t *seq, uint8_t cnt);
+
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
 
 /*******************************************************************************
  * Code
  ******************************************************************************/
-
-#if ENABLE_OUTPUT_DEV_AudioDump == 2
-/**
- * @brief Send ASR input (processed by AFE) stream to Audio Dump component.
- *
- * @param dev Pointer to the current device.
- * @param clean Pointer to the clean stream.
- * @param cleanSize Size in bytes of clean stream.
- */
-static void _forwardDataToAudioDump(const voice_algo_dev_t *dev,
-                                    void *clean,
-                                    uint32_t cleanSize,
-                                    void *speaker,
-                                    uint32_t speakerSize)
-{
-    static uint8_t s_dumpOutPoolIdx   = 0;
-    static uint32_t s_skipFirstFrames = 0;
-
-    uint8_t *dumpBuffer = NULL;
-    uint32_t dataSize   = 0;
-
-    if (s_skipFirstFrames > AUDIO_DUMP_SKIP_FIRST_FRAMES_CNT)
-    {
-        dumpBuffer = &s_dumpOutPool[s_dumpOutPoolIdx][0][0];
-        memcpy(dumpBuffer, clean, cleanSize);
-        dataSize += cleanSize;
-
-#if SELF_WAKE_UP_PROTECTION
-        dumpBuffer = &s_dumpOutPool[s_dumpOutPoolIdx][1][0];
-
-        if ((speaker == NULL) || (speakerSize == 0))
-        {
-            memset(dumpBuffer, 1, AUDIO_DUMP_SLOT_SIZE);
-            dataSize += AUDIO_DUMP_SLOT_SIZE;
-        }
-        else
-        {
-            memcpy(dumpBuffer, speaker, speakerSize);
-            dataSize += speakerSize;
-        }
-#endif /* SELF_WAKE_UP_PROTECTION */
-
-        if (dev->cap.callback != NULL)
-        {
-            valgo_event_t valgo_event = {0};
-            valgo_event.eventId       = kVAlgoEvent_AsrToAudioDump;
-            valgo_event.eventInfo     = kEventInfo_Remote;
-            valgo_event.data          = s_dumpOutPool[s_dumpOutPoolIdx];
-            valgo_event.size          = dataSize;
-            valgo_event.copy          = 0;
-
-            dev->cap.callback(dev->id, valgo_event, 0);
-        }
-
-        s_dumpOutPoolIdx = (s_dumpOutPoolIdx + 1) % AUDIO_DUMP_SLOTS_CNT;
-    }
-    else
-    {
-        s_skipFirstFrames++;
-    }
-}
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 2 */
 
 #if SELF_WAKE_UP_PROTECTION
 /*!
@@ -220,6 +147,13 @@ static asr_language_t get_self_protection_language(asr_language_t lang)
     return selfProtectionLang;
 }
 #endif /* SELF_WAKE_UP_PROTECTION */
+
+#ifdef ASR_TO_AFE_PROCESSED_NOTIFY
+/*!
+ * @brief Notify the AFE about the finish of the run.
+ */
+static void voice_algo_asr_run_notify(hal_valgo_status_t status);
+#endif /* ASR_TO_AFE_PROCESSED_NOTIFY */
 
 /*!
  * @brief Check if the detected command was not a "fake" one triggered by the device's speaker.
@@ -576,7 +510,7 @@ static void set_CMD_engine(asr_voice_control_t *pAsrCtrl,
             pInf->idToKeyword = cmdString;
 
 #if (SELF_WAKE_UP_PROTECTION & SELF_WAKE_UP_VC)
-            pInf = pInf->next;
+            pInf               = pInf->next;
             pInf->iWhoAmI_inf  = infCMDType;
             pInf->iWhoAmI_lang = get_self_protection_language(langType);
             pInf->addrGroup[0] = pLang->addrGroup[0]; // base model. should be same with WW's base
@@ -704,32 +638,37 @@ static void initialize_asr(void)
 
 #if SELF_WAKE_UP_PROTECTION
     /* Install enabled languages. */
-    install_language(&s_AsrEngine.voiceControl, &s_AsrEngine.langModel[MAX_NUM_LANGUAGES + 3], lang[3], (unsigned char *)&oob_demo_fr_begin,
-                     NUM_GROUPS);
-    install_language(&s_AsrEngine.voiceControl, &s_AsrEngine.langModel[MAX_NUM_LANGUAGES + 2], lang[2], (unsigned char *)&oob_demo_de_begin,
-                     NUM_GROUPS);
-    install_language(&s_AsrEngine.voiceControl, &s_AsrEngine.langModel[MAX_NUM_LANGUAGES + 1], lang[1], (unsigned char *)&oob_demo_cn_begin,
-                     NUM_GROUPS);
-    install_language(&s_AsrEngine.voiceControl, &s_AsrEngine.langModel[MAX_NUM_LANGUAGES + 0], lang[0], (unsigned char *)&oob_demo_en_begin,
-                     NUM_GROUPS);
+    install_language(&s_AsrEngine.voiceControl, &s_AsrEngine.langModel[MAX_NUM_LANGUAGES + 3], lang[3],
+                     (unsigned char *)&oob_demo_fr_begin, NUM_GROUPS);
+    install_language(&s_AsrEngine.voiceControl, &s_AsrEngine.langModel[MAX_NUM_LANGUAGES + 2], lang[2],
+                     (unsigned char *)&oob_demo_de_begin, NUM_GROUPS);
+    install_language(&s_AsrEngine.voiceControl, &s_AsrEngine.langModel[MAX_NUM_LANGUAGES + 1], lang[1],
+                     (unsigned char *)&oob_demo_cn_begin, NUM_GROUPS);
+    install_language(&s_AsrEngine.voiceControl, &s_AsrEngine.langModel[MAX_NUM_LANGUAGES + 0], lang[0],
+                     (unsigned char *)&oob_demo_en_begin, NUM_GROUPS);
 #endif /* SELF_WAKE_UP_PROTECTION */
 
 #if (SELF_WAKE_UP_PROTECTION & SELF_WAKE_UP_WW)
     /* Install enabled languages' Wake Words self wake up protection mechanism. */
-    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infWW[MAX_NUM_LANGUAGES + 3], get_self_protection_language(lang[3]), ASR_WW, ww_fr, s_memPoolWLangFrSelfWake,
+    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infWW[MAX_NUM_LANGUAGES + 3],
+                             get_self_protection_language(lang[3]), ASR_WW, ww_fr, s_memPoolWLangFrSelfWake,
                              WAKE_WORD_MEMPOOL_SIZE);
-    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infWW[MAX_NUM_LANGUAGES + 2], get_self_protection_language(lang[2]), ASR_WW, ww_de, s_memPoolWLangDeSelfWake,
+    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infWW[MAX_NUM_LANGUAGES + 2],
+                             get_self_protection_language(lang[2]), ASR_WW, ww_de, s_memPoolWLangDeSelfWake,
                              WAKE_WORD_MEMPOOL_SIZE);
-    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infWW[MAX_NUM_LANGUAGES + 1], get_self_protection_language(lang[1]), ASR_WW, ww_cn, s_memPoolWLangCnSelfWake,
+    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infWW[MAX_NUM_LANGUAGES + 1],
+                             get_self_protection_language(lang[1]), ASR_WW, ww_cn, s_memPoolWLangCnSelfWake,
                              CN_WAKE_WORD_MEMPOOL_SIZE);
-    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infWW[MAX_NUM_LANGUAGES + 0], get_self_protection_language(lang[0]), ASR_WW, ww_en, s_memPoolWLangEnSelfWake,
+    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infWW[MAX_NUM_LANGUAGES + 0],
+                             get_self_protection_language(lang[0]), ASR_WW, ww_en, s_memPoolWLangEnSelfWake,
                              WAKE_WORD_MEMPOOL_SIZE);
 #endif /* (SELF_WAKE_UP_PROTECTION & SELF_WAKE_UP_WW) */
 
 #if (SELF_WAKE_UP_PROTECTION & SELF_WAKE_UP_VC)
     /* Install English Voice Commands self wake up protection mechanism..
      * Reconfigure Voice Commands to appropriate language after Wake Word in that language is uttered. */
-    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infCMD[1], get_self_protection_language(s_AsrEngine.voiceConfig.currentLanguage),
+    install_inference_engine(&s_AsrEngine.voiceControl, &s_AsrEngine.infCMD[1],
+                             get_self_protection_language(s_AsrEngine.voiceConfig.currentLanguage),
                              s_AsrEngine.voiceConfig.demo,
                              get_cmd_strings(s_AsrEngine.voiceConfig.currentLanguage, s_AsrEngine.voiceConfig.demo),
                              s_memPoolCmdSelfWake, COMMAND_MEMPOOL_SIZE);
@@ -931,20 +870,20 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
     hal_valgo_status_t status = kStatus_HAL_ValgoSuccess;
     struct asr_inference_engine *pInfWW;
     struct asr_inference_engine *pInfCMD;
-    int16_t *cleanSound      = NULL;
-    int16_t *speakerSound    = NULL;
+    int16_t *cleanSound   = NULL;
+    int16_t *speakerSound = NULL;
 
     msg_payload_t *audioIn = (msg_payload_t *)data;
-    if ((audioIn->data != NULL) && (audioIn->size == NUM_SAMPLES_AFE_OUTPUT))
+    if ((audioIn->data != NULL) && (audioIn->size == ASR_INPUT_SAMPLES))
     {
         cleanSound   = audioIn->data;
         speakerSound = NULL;
     }
 #if SELF_WAKE_UP_PROTECTION
-    else if ((audioIn->data != NULL) && (audioIn->size == (NUM_SAMPLES_AFE_OUTPUT * 2)))
+    else if ((audioIn->data != NULL) && (audioIn->size == (ASR_INPUT_SAMPLES * 2)))
     {
         cleanSound   = audioIn->data;
-        speakerSound = &(((int16_t *)audioIn->data)[NUM_SAMPLES_AFE_OUTPUT]);
+        speakerSound = &(((int16_t *)audioIn->data)[ASR_INPUT_SAMPLES]);
     }
 #endif /* SELF_WAKE_UP_PROTECTION */
     else
@@ -955,7 +894,7 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
 
     if (status == kStatus_HAL_ValgoSuccess)
     {
-        static char* s_cmdName           = NULL;
+        static char *s_cmdName           = NULL;
         static asr_language_t s_cmdLang  = UNDEFINED_LANGUAGE;
         static uint32_t s_cmdLength      = 0;
         static asr_result_t s_cmdDetails = {0};
@@ -964,9 +903,15 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
         bool fakeCmdDetected         = false;
         cmd_state_t cmdConfirmed     = kWwNotSure;
         uint32_t cmdConfirmedDelayMs = 0;
+        uint32_t *dumpMark = audioIn->data_marks;
+
 
         if (s_asrSession == ASR_SESSION_WAKE_WORD)
         {
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+            postMarkCleanStreamConsumedByWW(dumpMark, ASR_INPUT_FRAMES);
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
+
 #if (SELF_WAKE_UP_PROTECTION & SELF_WAKE_UP_WW)
             if (speakerSound != NULL)
             {
@@ -979,7 +924,7 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
                         continue;
                     }
 
-                    if (asr_process_audio_buffer(pInfWW->handler, speakerSound, NUM_SAMPLES_AFE_OUTPUT,
+                    if (asr_process_audio_buffer(pInfWW->handler, speakerSound, ASR_INPUT_SAMPLES,
                                                  pInfWW->iWhoAmI_inf) == kAsrLocalDetected)
                     {
                         s_cmdName = asr_get_string_by_id(pInfWW, s_AsrEngine.voiceControl.result.keywordID[0]);
@@ -1002,7 +947,7 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
                     continue;
                 }
 
-                if (asr_process_audio_buffer(pInfWW->handler, cleanSound, NUM_SAMPLES_AFE_OUTPUT,
+                if (asr_process_audio_buffer(pInfWW->handler, cleanSound, ASR_INPUT_SAMPLES,
                                              pInfWW->iWhoAmI_inf) == kAsrLocalDetected)
                 {
                     s_cmdName   = asr_get_string_by_id(pInfWW, s_AsrEngine.voiceControl.result.keywordID[0]);
@@ -1015,7 +960,7 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
                 }
                 else
                 {
-                    s_cmdLength += NUM_SAMPLES_AFE_OUTPUT;
+                    s_cmdLength += ASR_INPUT_SAMPLES;
                 }
             }
 
@@ -1024,7 +969,8 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
             {
                 asr_set_state(ASR_SESSION_STOPPED);
 
-                LOGD("[ASR] Wake Word: %s(%d) - MapID(%d), delay %d [ms]", s_cmdName, s_cmdDetails.keywordID[0], s_cmdDetails.cmdMapID, cmdConfirmedDelayMs);
+                LOGD("[ASR] Wake Word: %s(%d) - MapID(%d), delay %d [ms]", s_cmdName, s_cmdDetails.keywordID[0],
+                     s_cmdDetails.cmdMapID, cmdConfirmedDelayMs);
 
                 s_AsrEngine.voiceConfig.currentLanguage = s_cmdLang;
 
@@ -1041,21 +987,17 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
             else if (cmdConfirmed == kWwRejected)
             {
                 reset_WW_engine(&s_AsrEngine.voiceControl);
-                LOGD("[ASR] REJECTED Wake Word: %s(%d) - MapID(%d), delay %d [ms]", s_cmdName, s_cmdDetails.keywordID[0], s_cmdDetails.cmdMapID, cmdConfirmedDelayMs);
+                LOGD("[ASR] REJECTED Wake Word: %s(%d) - MapID(%d), delay %d [ms]", s_cmdName,
+                     s_cmdDetails.keywordID[0], s_cmdDetails.cmdMapID, cmdConfirmedDelayMs);
             }
 #endif /* (SELF_WAKE_UP_PROTECTION & SELF_WAKE_UP_WW) */
-
-#if ENABLE_OUTPUT_DEV_AudioDump == 2
-            _forwardDataToAudioDump(dev,
-                                    cleanSound,
-                                    NUM_SAMPLES_AFE_OUTPUT * SAMPLE_SIZE_AFE_OUTPUT,
-                                    speakerSound,
-                                    NUM_SAMPLES_AFE_OUTPUT * SAMPLE_SIZE_AFE_OUTPUT
-                                    );
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 2 */
         }
         else if (s_asrSession == ASR_SESSION_VOICE_COMMAND)
         {
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+            postMarkCleanStreamConsumedByCMD(dumpMark, ASR_INPUT_FRAMES);
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
+
 #if (SELF_WAKE_UP_PROTECTION & SELF_WAKE_UP_VC)
             if (speakerSound != NULL)
             {
@@ -1068,8 +1010,8 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
                         continue;
                     }
 
-                    if (asr_process_audio_buffer(pInfCMD->handler, speakerSound, NUM_SAMPLES_AFE_OUTPUT,
-                            pInfCMD->iWhoAmI_inf) == kAsrLocalDetected)
+                    if (asr_process_audio_buffer(pInfCMD->handler, speakerSound, ASR_INPUT_SAMPLES,
+                                                 pInfCMD->iWhoAmI_inf) == kAsrLocalDetected)
                     {
                         s_cmdName = asr_get_string_by_id(pInfCMD, s_AsrEngine.voiceControl.result.keywordID[1]);
                         s_cmdLang = pInfCMD->iWhoAmI_lang;
@@ -1091,7 +1033,7 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
                     continue;
                 }
 
-                if (asr_process_audio_buffer(pInfCMD->handler, cleanSound, NUM_SAMPLES_AFE_OUTPUT,
+                if (asr_process_audio_buffer(pInfCMD->handler, cleanSound, ASR_INPUT_SAMPLES,
                                              pInfCMD->iWhoAmI_inf) == kAsrLocalDetected)
                 {
                     s_cmdName   = asr_get_string_by_id(pInfCMD, s_AsrEngine.voiceControl.result.keywordID[1]);
@@ -1104,7 +1046,7 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
                 }
                 else
                 {
-                    s_cmdLength += NUM_SAMPLES_AFE_OUTPUT;
+                    s_cmdLength += ASR_INPUT_SAMPLES;
                 }
             }
 
@@ -1113,13 +1055,15 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
             {
                 reset_CMD_engine(&s_AsrEngine.voiceControl);
 
-                LOGD("[ASR] Command: %s(%d) - MapID(%d), delay %d [ms]", s_cmdName, s_cmdDetails.keywordID[1], s_cmdDetails.cmdMapID, cmdConfirmedDelayMs);
+                LOGD("[ASR] Command: %s(%d) - MapID(%d), delay %d [ms]", s_cmdName, s_cmdDetails.keywordID[1],
+                     s_cmdDetails.cmdMapID, cmdConfirmedDelayMs);
 
                 /* Send Feedback to AFE regarding detected Voice Command length.
                  * Based on this feedback, AFE calibrates itself for a better performance */
-                s_AsrEngine.voiceResult.status    = ASR_CMD_DETECT;
-                s_AsrEngine.voiceResult.language  = s_cmdLang;
-                s_AsrEngine.voiceResult.keywordID = get_action_index_from_keyword(s_cmdLang, s_AsrEngine.voiceConfig.demo, s_cmdDetails.keywordID[1]);
+                s_AsrEngine.voiceResult.status   = ASR_CMD_DETECT;
+                s_AsrEngine.voiceResult.language = s_cmdLang;
+                s_AsrEngine.voiceResult.keywordID =
+                    get_action_index_from_keyword(s_cmdLang, s_AsrEngine.voiceConfig.demo, s_cmdDetails.keywordID[1]);
 
                 if (s_afeCalibrated == true)
                 {
@@ -1136,22 +1080,23 @@ hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *dat
             else if (cmdConfirmed == kWwRejected)
             {
                 reset_CMD_engine(&s_AsrEngine.voiceControl);
-                LOGD("[ASR] REJECTED Command: %s(%d) - MapID(%d), delay %d [ms]", s_cmdName, s_cmdDetails.keywordID[1], s_cmdDetails.cmdMapID, cmdConfirmedDelayMs);
+                LOGD("[ASR] REJECTED Command: %s(%d) - MapID(%d), delay %d [ms]", s_cmdName, s_cmdDetails.keywordID[1],
+                     s_cmdDetails.cmdMapID, cmdConfirmedDelayMs);
             }
 #endif /* (SELF_WAKE_UP_PROTECTION & SELF_WAKE_UP_VC) */
-
-#if ENABLE_OUTPUT_DEV_AudioDump == 2
-            _forwardDataToAudioDump(dev,
-                                    cleanSound,
-                                    NUM_SAMPLES_AFE_OUTPUT * SAMPLE_SIZE_AFE_OUTPUT,
-                                    speakerSound,
-                                    NUM_SAMPLES_AFE_OUTPUT * SAMPLE_SIZE_AFE_OUTPUT
-                                    );
-#endif /* ENABLE_OUTPUT_DEV_AudioDump == 2 */
         }
-
+#if ENABLE_OUTPUT_DEV_AudioDump
+        else
+        {
+            postMarkCleanStreamSKIPPED(dumpMark, ASR_INPUT_FRAMES);
+        }
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
         s_afeDataProcessed++;
     }
+
+#ifdef ASR_TO_AFE_PROCESSED_NOTIFY
+    voice_algo_asr_run_notify(status);
+#endif /* ASR_TO_AFE_PROCESSED_NOTIFY */
 
     return status;
 }
@@ -1211,16 +1156,19 @@ hal_valgo_status_t voice_algo_dev_input_notify(const voice_algo_dev_t *dev, void
         case (SET_MULTILINGUAL_CONFIG):
             if (isMultilingualSupported(event.set_multilingual_config.languages))
             {
-                s_AsrEngine.voiceConfig.multilingual = event.set_multilingual_config.languages;
-                initialize_asr();
-                asr_set_state(asrSession);
+                if(s_AsrEngine.voiceConfig.multilingual != event.set_multilingual_config.languages)
+                {
+                    s_AsrEngine.voiceConfig.multilingual = event.set_multilingual_config.languages;
+                    initialize_asr();
+                    asr_set_state(asrSession);
+                    print_enabled_languages(s_AsrEngine.voiceConfig.multilingual);
+                }
             }
             else
             {
                 LOGE("Language %s (%d) is not supported.", get_language_str(event.set_multilingual_config.languages),
                      event.set_multilingual_config.languages);
             }
-            print_enabled_languages(s_AsrEngine.voiceConfig.multilingual);
             break;
 
         case (GET_VOICE_DEMO):
@@ -1289,9 +1237,10 @@ hal_valgo_status_t voice_algo_dev_input_notify(const voice_algo_dev_t *dev, void
         case (SET_VOICE_MODEL):
         {
             set_asr_config_event_t config = (set_asr_config_event_t)event.set_asr_config;
+            uint8_t model_initialization_flag = 0, voice_session_update_flag = 0;
 
-            LOGD("[ASR] Set Voice Model: demo %d, language %d(%s), ptt %d", config.demo,
-                    config.lang, get_language_str(config.lang), config.ptt);
+            LOGD("[ASR] Set Voice Model: demo %d, language %d(%s), ptt %d", config.demo, config.lang,
+                 get_language_str(config.lang), config.ptt);
 
             /* In case the device was awaken via Wake Word (config.ptt == 0), it means AFE is already calibrated
              * based on the length of the previously detected Wake Word.
@@ -1305,65 +1254,77 @@ hal_valgo_status_t voice_algo_dev_input_notify(const voice_algo_dev_t *dev, void
             }
 
             /* (config.demo == UNDEFINED_INFERENCE) means use the same current demo. */
-            if (config.demo != UNDEFINED_INFERENCE)
+            if ((config.demo != UNDEFINED_INFERENCE) && (config.demo !=  s_AsrEngine.voiceConfig.demo))
             {
-                /* Wake Word is a part of the current demo so we should not update "demo" field. */
-                if (config.demo != ASR_WW)
+                switch(config.demo)
                 {
-                    /* TODO: Make "s_AsrEngine.voiceConfig.demo = config.demo;" for all after
-                     * Coffee Machine and Elevator models are split. */
-#if ENABLE_COFFEE_MACHINE
-                    s_AsrEngine.voiceConfig.demo = ASR_CMD_COFFEE_MACHINE;
-#elif ENABLE_ELEVATOR
-                    s_AsrEngine.voiceConfig.demo = ASR_CMD_ELEVATOR;
-#elif ENABLE_HOME_PANEL
-                    s_AsrEngine.voiceConfig.demo = config.demo;
-#endif
+                    case ASR_WW: /* Only need to update voice session */
+                    {
+                        if (s_asrSession != ASR_SESSION_WAKE_WORD)
+                        {
+                            voice_session_update_flag = 1;
+                            asrSession = ASR_SESSION_WAKE_WORD;                        }
+                    }
+                    break;
+
+                    default:  /* Model is updated. Need to re-initialize voice engine */
+                    {
+                        s_AsrEngine.voiceConfig.demo = config.demo;
+                        model_initialization_flag = 1;
+                    }
+                    break;
+                }
+            }
+
+            if ((config.demo != UNDEFINED_INFERENCE) && (config.demo == s_AsrEngine.voiceConfig.demo))
+            {
+                if (s_asrSession != ASR_SESSION_VOICE_COMMAND)
+                {
+                    voice_session_update_flag = 1;
+                    asrSession = ASR_SESSION_VOICE_COMMAND;
                 }
             }
 
             /* (config.lang != UNDEFINED_LANGUAGE) means use the same language. */
             if (config.lang != UNDEFINED_LANGUAGE)
             {
-                if (isLanguageAvailable(config.lang))
+                if (isLanguageSupported(config.lang))
                 {
-                    s_AsrEngine.voiceConfig.currentLanguage = config.lang;
-                }
-                else
-                {
-                    if (isLanguageSupported(config.lang))
-                    {
+                    if (!isLanguageAvailable(config.lang))
+                    {   /* Language is changed. Need to re-initialize voice model */
                         print_enabled_languages(s_AsrEngine.voiceConfig.multilingual);
                         LOGD("Language %s (%d) is not enabled. Enabling it.", get_language_str(config.lang),
                              config.lang);
 
                         s_AsrEngine.voiceConfig.multilingual |= config.lang;
                         s_AsrEngine.voiceConfig.currentLanguage = config.lang;
-                        initialize_asr();
-
+                        model_initialization_flag = 1;
                         print_enabled_languages(s_AsrEngine.voiceConfig.multilingual);
                     }
-                    else
+                    else if(s_AsrEngine.voiceConfig.currentLanguage != config.lang)
                     {
-                        s_AsrEngine.voiceConfig.currentLanguage = getFirstAvailableLanguage();
-                        LOGE("Language %s (%d) is not supported. Using %s instead.", get_language_str(config.lang),
-                             config.lang, get_language_str(s_AsrEngine.voiceConfig.currentLanguage));
-                        print_enabled_languages(s_AsrEngine.voiceConfig.multilingual);
+                        s_AsrEngine.voiceConfig.currentLanguage = config.lang;
+                        voice_session_update_flag = 1;
                     }
                 }
+                else
+                {
+                    s_AsrEngine.voiceConfig.currentLanguage = getFirstAvailableLanguage();
+                    LOGE("Language %s (%d) is not supported. Using %s instead.", get_language_str(config.lang),
+                         config.lang, get_language_str(s_AsrEngine.voiceConfig.currentLanguage));
+                    print_enabled_languages(s_AsrEngine.voiceConfig.multilingual);
+                }
+
             }
 
-            if (config.demo == UNDEFINED_INFERENCE)
+            if(model_initialization_flag)
             {
+                initialize_asr();
                 asr_set_state(asrSession);
             }
-            else if (config.demo == ASR_WW)
+            else if(voice_session_update_flag)
             {
-                asr_set_state(ASR_SESSION_WAKE_WORD);
-            }
-            else
-            {
-                asr_set_state(ASR_SESSION_VOICE_COMMAND);
+                asr_set_state(asrSession);
             }
         }
         break;
@@ -1420,6 +1381,31 @@ void voice_algo_asr_result_notify(asr_inference_result_t *result, uint32_t utter
         }
     }
 }
+
+#ifdef ASR_TO_AFE_PROCESSED_NOTIFY
+/*!
+ * @brief Notify the AFE about the finish of the run. */
+
+static void voice_algo_asr_run_notify(hal_valgo_status_t status)
+{
+    valgo_event_t valgo_event;
+    static event_voice_t runNotifyEvent;
+
+    if (voice_algo_dev_asr.cap.callback != NULL)
+    {
+        runNotifyEvent.event_base.eventId   = ASR_TO_AFE_PROCESSED;
+        runNotifyEvent.event_base.eventInfo = kEventInfo_Local;
+        runNotifyEvent.data                 = (void *)status;
+
+        /* Build Valgo event */
+        valgo_event.eventId = kVAlgoEvent_AsrToAfeProcessed;
+        valgo_event.data    = &runNotifyEvent;
+        valgo_event.size    = sizeof(event_voice_t);
+        valgo_event.copy    = 0;
+        voice_algo_dev_asr.cap.callback(voice_algo_dev_asr.id, valgo_event, 0);
+    }
+}
+#endif /* ASR_TO_AFE_PROCESSED_NOTIFY */
 
 int HAL_VoiceAlgoDev_Asr_Register()
 {

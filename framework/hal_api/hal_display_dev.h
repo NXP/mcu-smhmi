@@ -65,6 +65,8 @@ typedef enum _hal_display_status
         MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Display, 2), /*!< Display will return immediately */
     kStatus_HAL_DisplayError =
         MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Display, 3), /*!< Error occurs on HAL Display */
+    kStatus_HAL_DisplayRequestFrame =
+        MAKE_FRAMEWORK_STATUS(kStatusFrameworkGroups_Display, 4), /*!< Display requests camera Frame */
 } hal_display_status_t;
 
 /*! @brief Operation that needs to be implemented by a display device */

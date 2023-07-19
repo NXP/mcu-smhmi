@@ -1,10 +1,6 @@
----
-sidebar_position: 3
----
+# Output manager
 
-# Output Manager
-
-Output manager manages the output HAL devices which can be registered into the system.
+The Output manager manages the output HAL devices that can be registered into the system.
 
 ## APIs
 

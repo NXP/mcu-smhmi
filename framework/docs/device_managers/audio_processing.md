@@ -1,10 +1,6 @@
----
-sidebar_position: 9
----
+# Audio processing manager
 
-# Audio Processing Manager
-
-Audio processing manager manages the audio processing HAL devices which can be registered into the system.
+The Audio processing manager manages the audio processing HAL devices which can be registered into the system.
 
 ## APIs
 
@@ -54,5 +50,5 @@ int FWK_AudioProcessing_Deinit(void);
 ```
 
 ```{warning}
-Calling this function is unnecessary in most applications and should be used with caution.
+Calling this function is unnecessary in most applications and must be used with caution.
 ```

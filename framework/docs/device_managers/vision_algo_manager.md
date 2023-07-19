@@ -1,10 +1,6 @@
----
-sidebar_position: 6
----
+# Vision algorithm manager
 
-# Vision Algorithm Manager
-
-Vision algorithm manager manages the vision algorithm HAL devices which can be registered into the system.
+The Vision algorithm manager manages the vision algorithm HAL devices that can be registered into the system.
 
 ## APIs
 
@@ -51,5 +47,5 @@ int FWK_VisionAlgoManager_Deinit();
 ```
 
 ```{warning}
-Calling this function is unnecessary in most applications and should be used with caution.
+Calling this function is unnecessary in most applications and must be used with caution.
 ```

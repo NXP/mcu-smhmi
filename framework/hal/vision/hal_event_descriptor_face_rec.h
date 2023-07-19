@@ -17,6 +17,7 @@
 #define _HAL_EVENT_DESCRIPTOR_FACE_REC_H_
 
 #include "hal_event_descriptor_common.h"
+#include "hal_vision_algo.h"
 #include "hal_sln_facedb.h"
 
 typedef enum _event_face_rec_id
@@ -37,8 +38,11 @@ typedef enum _event_face_rec_id
     kEventFaceRecID_GetFaceRecThreshold,
 
     kEventFaceRecID_OasisSetState,
+    kEventFaceRecID_OasisSetSecurityState,
     kEventFaceRecID_OasisGetState,
 
+    kEventFaceRecID_UvitaGestureSetState,
+    kEventFaceRecID_UvitaGestureGetState,
     kEventFaceRecID_OasisDebugOption,
 
     kEventFaceRecID_COUNT
@@ -113,16 +117,21 @@ typedef struct _faceRecThreshold_event
     unsigned int value;
 } faceRecThreshold_event_t;
 
-typedef enum _oasis_state_t
+typedef enum _uvita_state_t
 {
-    kOasisState_Running = 0,
-    kOasisState_Stopped
-} oasis_state_t;
+    kUvitaState_Running = 0,
+    kUvitaState_Stopped
+} uvita_state_t;
 
 typedef struct _oasis_state_event_t
 {
-    oasis_state_t state;
+    oasis_lite_state_t state;
 } oasis_state_event_t;
+
+typedef struct _uvita_state_event_t
+{
+    uvita_state_t state;
+} uvita_state_event_t;
 
 typedef struct _event_face_rec
 {
@@ -138,6 +147,7 @@ typedef struct _event_face_rec
         wuart_event_t wuart;
         faceRecThreshold_event_t faceRecThreshold;
         oasis_state_event_t oasisState;
+        uvita_state_event_t uvitaState;
     };
 } event_face_rec_t;
 

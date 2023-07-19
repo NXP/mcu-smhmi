@@ -6,7 +6,7 @@ For information about getting up and running with the Smart HMI solution, check 
 ## Out-of-Box Demos
 
 The Smart HMI Solution comes with a few different demo applications flashed right out of the box.
-These applications include the [Coffee Machine](#coffee-machine), [Elevator](#elevator), and [Smart Home Panel](#smart-home-control-panel) demo applications,
+These applications include the [Coffee Machine](#coffee-machine), [Elevator](#elevator), and [Smart Panel](#smart-panel) demo applications,
 with new functionality and demos being added in as part of update releases.
 
 Each of these apps are intended to demonstrate and highlight different functionality that the solution supports,
@@ -25,9 +25,9 @@ A detailed description of the Coffee Machine demo, including the features it sup
 
 #### Source Code
 
-The source code for the Coffee Machine out-of-box demo application can be found under the `coffee_machine` folder.
+The source code for this application is on the `master` branch under the `coffee_machine` folder.
 
-By default, the firmware for the Coffee Machine application is located at `0x30100000`, while the resource files (images, audio files, etc.) are located at `0x30700000`.
+By default, the firmware for the Coffee Machine application is located at `0x30100000`, while the resource files (images, audio files, etc.) are located at `0x30800000`.
 
 ### Elevator
 
@@ -44,31 +44,27 @@ A detailed description of the Elevator demo, including the features it supports 
 
 #### Source Code
 
-The source code for the Elevator out-of-box demo application can be found under the `elevator` folder.
+The source code for this application is on the master branch under the `elevator` folder.
 
-By default, the firmware for the Elevator application is located at `0x31500000`, while the resource files (images, audio files, etc.) are located at `0x31B00000`.
+By default, the firmware for the Elevator application is located at `0x31500000`, while the resource files (images, audio files, etc.) are located at `0x31C00000`.
 
-### Smart Home Control Panel
+### Smart Panel
 
-> **Note**
-> The Smart Home Control Panel demo is currently in development
-> and will be made available in a future release.
+![Smart Panel](./docs/source/img/smart_panel_home_screen.png)
 
-The Smart Home Control Panel demo application is one of several different applications supported out-of-the-box by the Smart HMI Solution.
+The Smart Panel demo application is one of several different applications supported out-of-the-box by the Smart HMI Solution.
 
-This demo shows how a hypothetical smart home appliance like a wall control panel might utilize features like:
+This demo shows how a hypothetical smart panel appliance like a wall control panel might utilize features like:
 
 - Multilingual hands-free voice control
 - Face recognition w/ liveness detection & antispoofing protection
 - Gesture recognition
 
-A detailed description of the Smart Home Control Panel demo, including the features it supports and their usage, will be made available in the [Smart HMI User Guide] once the demo is released.
-
 #### Source Code
 
-Once ready, the source code for the Smart Home Control Panel out-of-box demo application will be made available under the `smart_home` folder once the demo is released.
+Once ready, the source code for the Smart Panel out-of-box demo application will be made available under the `smart_home` folder once the demo is released.
 
-By default, the firmware for the Smart Home Control Panel application is located at `0x32900000`, while the resource files (images, audio files, etc.) are located at `0x32F00000`.
+By default, the firmware for the Smart Panel application is located at `0x32900000`, while the resource files (images, audio files, etc.) are located at `0x33000000`.
 
 ## Bootloader
 
@@ -124,7 +120,7 @@ Once MSD mode is enabled, in addition to the purple light on the front of the ki
 Now, to update the firmware on the device, simply copy the binary file for each demo app you want to update over to the USB Drive associated with your kit.
 
 > **Note**
-> Using the MSD feature to perform an update may change the buttons associated with the Coffee Machine, Elevator, and Smart Home Panel apps.
+> Using the MSD feature to perform an update may change the buttons associated with the Coffee Machine, Elevator, and Smart Panel apps.
 > For more info as to why this is the case, check out the MSD section in the [Smart HMI Software Developer Guide].
 
 While a firmware update is in progress, a dialog window will appear which is identical to what you might see when copying a large set of files from a folder on your PC to a folder on a USB drive.

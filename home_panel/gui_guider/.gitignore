@@ -1,0 +1,6 @@
+generated/mPythonImages/
+lvgl/
+lvgl-simulator/
+lib/
+temp/
+sdk/

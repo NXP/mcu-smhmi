@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Camera Devices
 
 The `Camera` HAL device provides an abstraction to represent many different camera devices
@@ -405,11 +401,11 @@ This param should be provided when calling the [`Callback`](#callback) function.
 ## Example
 
 The project has several camera devices implemented for use as-is or for use as reference for implementing new camera devices.
-Source files for these camera HAL devices can be found under "HAL/common".
+Source files for these camera HAL devices can be found under "framework/hal/camera".
 
-Below is an example of the GC0308 RGB FlexIO camera HAL device driver "HAL/common/hal_camera_flexio_gc0308.c".
+Below is an example of the GC0308 RGB FlexIO camera HAL device driver "framework/hal/camera/hal_camera_flexio_gc0308.c".
 
-```c title="HAL/common/hal_camera_flexio_gc0308.c"
+```c title="framework/hal/camera/hal_camera_flexio_gc0308.c"
 hal_camera_status_t HAL_CameraDev_FlexioGc0308_Init(
     camera_dev_t *dev, int width, int height, camera_dev_callback_t callback, void *param);
 static hal_camera_status_t HAL_CameraDev_FlexioGc0308_Deinit(camera_dev_t *dev);

@@ -1,0 +1,7 @@
+*(EXCLUDE_FILE(
+*custom*.o
+*lvgl_support.o
+*display_support.o
+*fwk_*.o
+*hal_*.o
+*freertos_kernel*.o)  .text*)

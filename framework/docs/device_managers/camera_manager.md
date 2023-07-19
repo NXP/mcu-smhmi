@@ -1,10 +1,6 @@
----
-sidebar_position: 4
----
+# Camera manager
 
-# Camera Manager
-
-Camera manager manages the camera HAL devices which can be registered into the system.
+Camera manager manages the camera HAL devices that can be registered into the system.
 
 ## APIs
 
@@ -50,5 +46,5 @@ int FWK_CameraManager_Deinit();
 ```
 
 ```{warning}
-Calling this function is unnecessary in most applications and should be used with caution.
+Calling this function is unnecessary in most applications and must be used with caution.
 ```

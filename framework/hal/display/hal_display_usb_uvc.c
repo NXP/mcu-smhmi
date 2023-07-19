@@ -748,7 +748,7 @@ static hal_display_status_t HAL_DisplayDev_UsbUvc_Start(const display_dev_t *dev
 
 static hal_display_status_t HAL_DisplayDev_UsbUvc_Blit(const display_dev_t *dev, void *frame, int width, int height)
 {
-    hal_display_status_t ret = kStatus_HAL_DisplaySuccess;
+    hal_display_status_t ret = kStatus_HAL_DisplayRequestFrame;
 
     LOGI("USB new frame");
 #if DEBUG_UVC

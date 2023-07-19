@@ -277,14 +277,15 @@ int32_t SLN_Crc(sln_encrypt_ctx_t *ctx, const uint8_t *in, size_t inSize, uint32
 {
     int32_t ret     = SLN_ENCRYPT_STATUS_OK;
     status_t status = kStatus_Success;
-
-    uint8_t keySlot = ctx->keySlot;
     caam_hash_ctx_t ctx_caam;
+
     if ((NULL == ctx))
     {
         ret = SLN_ENCRYPT_NULL_CTX;
         goto exit;
     }
+
+    uint8_t keySlot = ctx->keySlot;
 
     if (!SLN_Encrypt_Key_Loaded(ctx))
     {

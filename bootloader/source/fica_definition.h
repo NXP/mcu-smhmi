@@ -88,14 +88,13 @@
 #elif (FLASH_SIZE == 0x4000000U)
 /* FLASH_SIZE = 64MB */
 #define FICA_IMG_RESERVED_SIZE (0x00000000)      /* 0  MB - toolbox - deprecated */
-#define FICA_IMG_APP_SIZE      (0x00600000)      /* 6 MB */
-#define FICA_IMG_APP_A_SIZE    FICA_IMG_APP_SIZE /* 6 MB */
-#define FICA_IMG_APP_B_SIZE    FICA_IMG_APP_SIZE /* 6 MB */
+#define FICA_IMG_APP_SIZE      (0x00700000)      /* 7 MB */
+#define FICA_IMG_APP_A_SIZE    FICA_IMG_APP_SIZE /* 7 MB */
+#define FICA_IMG_APP_B_SIZE    FICA_IMG_APP_SIZE /* 7 MB */
 
 #if FICA_RESOURCES_ENABLE
-#define FICA_IMG_RESOURCE_SIZE (0xE00000) /* 14 MB */
+#define FICA_IMG_RESOURCE_SIZE (0xD00000) /* 13 MB */
 #endif                                    /* FICA_RESOURCES_ENABLE */
-
 #endif                                    /* FLASH_SIZE */
 
 #ifndef FICA_IMG_RESOURCE_SIZE

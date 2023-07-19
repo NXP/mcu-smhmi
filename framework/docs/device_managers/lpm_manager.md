@@ -1,16 +1,12 @@
----
-sidebar_position: 8
----
+# Low-Power device manager
 
-# Low Power Manager
-
-The Low Power Device Manager is unique amongst the managers
-because it does not have the typical `Init` and `Start` functions that the other managers do.
+The Low-Power device manager is unique among the managers because it does not have the typical
+`Init` and `Start` functions that the other managers do.
 Instead,
-the Low Power Manager has APIs to register a device (only one at a time), configure how deep a sleep the board should enter, enable sleep mode, and more.
+the Low Power Manager has APIs to register a device (only one at a time), configure how the board should enter deep sleep, enable sleep mode, and more.
 
 ```{note}
-Due to the unique nature of the low power devices being an abstract "virtual" device,
+Due to the unique nature of low-power devices being an abstract "virtual" device,
 only one LPM device can be registered to the LPM manager at a time.
 However,
 there should be no need for more than one LPM device because other devices can configure the current low power mode states by using the Low Power Manager APIs.

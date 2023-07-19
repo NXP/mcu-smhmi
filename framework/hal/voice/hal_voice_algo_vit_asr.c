@@ -37,8 +37,6 @@
 #endif
 
 #define NUMBER_OF_CHANNELS ASR_INPUT_CHANNELS
-
-#define MODEL_LOCATION VIT_MODEL_IN_ROM
 #if (NUMBER_OF_CHANNELS == 1)
 #define VIT_OPERATING_MODE_WW  (VIT_WAKEWORD_ENABLE)
 #define VIT_OPERATING_MODE_CMD (VIT_VOICECMD_ENABLE)
@@ -55,10 +53,16 @@
 #define MEMORY_ALIGNMENT 8 // in bytes
 
 /* VIT memory pools sizes */
-#define FAST_MEMORY_SIZE_BYTES    (45000)
-#define SLOW_MEMORY_SIZE_BYTES    (225000)
-#define MODEL_MEMORY_SIZE_BYTES   (sizeof(VIT_Model_en))
-#define VIT_AFE_MEMORY_SIZE_BYTES (290000)
+#define FAST_MEMORY_SIZE_BYTES  (45000)
+#define SLOW_MEMORY_SIZE_BYTES  (225000)
+#define MODEL_MEMORY_SIZE_BYTES (450000)
+
+/* Configure the detection period in second for each command
+   VIT will return UNKNOWN if no command is recognized during this time span.
+   When only activating one mode, WWD or CMD, even timeout event trigger,
+   no model switching happens automatically. Set it to 60s aligned with UI session.
+ */
+#define VIT_COMMAND_TIME_SPAN 8
 
 typedef enum _asr_session
 {
@@ -72,30 +76,39 @@ static VIT_Handle_t VITHandle = PL_NULL;      // VIT handle pointer
 static VIT_InstanceParams_st VITInstParams;   // VIT instance parameters structure
 static VIT_ControlParams_st VITControlParams; // VIT control parameters structure
 static PL_MemoryTable_st VITMemoryTable;      // VIT memory table descriptor
-static PL_BOOL InitPhase_Error        = PL_FALSE;
-static VIT_DataIn_st VIT_InputBuffers = {PL_NULL, PL_NULL,
-                                         PL_NULL}; // Resetting Input Buffer addresses provided to VIT_process() API
+static PL_BOOL InitPhase_Error = PL_FALSE;
 static PL_INT8 *pMemory[PL_NR_MEMORY_REGIONS];
+
+#if SELF_WAKE_UP_PROTECTION
+static VIT_Handle_t VITHandleSelfWake = PL_NULL; // VIT handle pointer for self wake up engine
+static PL_MemoryTable_st VITMemoryTableSelfWake;
+static PL_INT8 *pMemorySelfWake[PL_NR_MEMORY_REGIONS];
+#endif /* SELF_WAKE_UP_PROTECTION */
 
 VIT_StatusParams_st VIT_StatusParams_Buffer;
 /*******************************************************************************
  * Variables
  ******************************************************************************/
 
-/* TODO: Delete these variables and the code where they are used.
- * Currently VIT library calls OSA_MemoryAllocate and OSA_MemoryFree.
- * For the best CPU Usage performance, OSA_MemoryAllocate should allocate
- * memory from a fast memory.
- * In this case we want to allocate it from OCRAM instead of SDRAM. */
-uint8_t g_vitAfeInitializing = 0;
-uint32_t g_vitAfeMemoryUsed  = 0;
-AT_CACHEABLE_SECTION_ALIGN_OCRAM(int8_t g_vitAfeMemory[VIT_AFE_MEMORY_SIZE_BYTES], 8);
-
 static uint32_t s_vitFastMemoryUsed = 0;
 AT_NONCACHEABLE_SECTION_ALIGN_DTC(static int8_t s_vitFastMemory[FAST_MEMORY_SIZE_BYTES], 8);
 static uint32_t s_vitSlowMemoryUsed = 0;
 AT_CACHEABLE_SECTION_ALIGN_OCRAM(static int8_t s_vitSlowMemory[SLOW_MEMORY_SIZE_BYTES], 8);
 AT_CACHEABLE_SECTION_ALIGN_OCRAM(static int8_t s_vitModelMemory[MODEL_MEMORY_SIZE_BYTES], 64);
+
+#if SELF_WAKE_UP_PROTECTION
+static uint32_t s_vitFastMemoryUsedSelfWake = 0;
+AT_NONCACHEABLE_SECTION_ALIGN_DTC(static int8_t s_vitFastMemorySelfWake[FAST_MEMORY_SIZE_BYTES], 8);
+static uint32_t s_vitSlowMemoryUsedSelfWake = 0;
+AT_CACHEABLE_SECTION_ALIGN_OCRAM(static int8_t s_vitSlowMemorySelfWake[SLOW_MEMORY_SIZE_BYTES], 8);
+#endif /* SELF_WAKE_UP_PROTECTION */
+
+typedef enum _cmd_state
+{
+    kWwConfirmed,
+    kWwRejected,
+    kWwNotSure,
+} cmd_state_t;
 
 typedef struct _asr_voice_param
 {
@@ -111,6 +124,12 @@ static void voice_algo_asr_result_notify(asr_inference_result_t *result, uint32_
 /* Performance Statistics. */
 extern volatile uint32_t s_afeDataProcessed;
 
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+extern void postMarkCleanStreamSKIPPED(uint32_t *seq, uint8_t cnt);
+extern void postMarkCleanStreamConsumedByWW(uint32_t *seq, uint8_t cnt);
+extern void postMarkCleanStreamConsumedByCMD(uint32_t *seq, uint8_t cnt);
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
+
 /*******************************************************************************
  * Code
  ******************************************************************************/
@@ -118,9 +137,7 @@ static int VIT_Deinit()
 {
     VIT_ReturnStatus_en VIT_Status;
 
-    g_vitAfeInitializing = 1;
-    VIT_Status           = VIT_GetMemoryTable(VITHandle, &VITMemoryTable, &VITInstParams);
-    g_vitAfeInitializing = 0;
+    VIT_Status = VIT_GetMemoryTable(VITHandle, &VITMemoryTable, &VITInstParams);
 
     if (VIT_Status != VIT_SUCCESS)
     {
@@ -136,6 +153,14 @@ static int VIT_Deinit()
             memset(pMemory[i], 0, VITMemoryTable.Region[i].Size);
             pMemory[i] = NULL;
         }
+
+#if SELF_WAKE_UP_PROTECTION
+        if (VITMemoryTableSelfWake.Region[i].Size != 0)
+        {
+            memset(pMemorySelfWake[i], 0, VITMemoryTableSelfWake.Region[i].Size);
+            pMemorySelfWake[i] = NULL;
+        }
+#endif /* SELF_WAKE_UP_PROTECTION */
     }
     return VIT_Status;
 }
@@ -149,7 +174,7 @@ static void asr_set_state(asr_session_t state)
     {
         case ASR_SESSION_STOPPED:
             LOGD("[ASR] Session stopped");
-            VITControlParams.OperatingMode = VIT_AFE_ENABLE;
+            VITControlParams.OperatingMode = VIT_LPVAD_ENABLE;
             break;
 
         case ASR_SESSION_WAKE_WORD:
@@ -169,42 +194,119 @@ static void asr_set_state(asr_session_t state)
 
     if (s_asrSession != ASR_SESSION_STOPPED)
     {
-        VITControlParams.MIC1_MIC2_Distance = VIT_MIC1_MIC2_DISTANCE;
-        VITControlParams.MIC1_MIC3_Distance = VIT_MIC1_MIC3_DISTANCE;
-        g_vitAfeInitializing                = 1;
-        VIT_Status                          = VIT_SetControlParameters(VITHandle, &VITControlParams);
-        g_vitAfeInitializing                = 0;
+        VITControlParams.Feature_LowRes    = PL_FALSE;
+        VITControlParams.Command_Time_Span = VIT_COMMAND_TIME_SPAN;
+
+        VIT_Status = VIT_SetControlParameters(VITHandle, &VITControlParams);
+#if SELF_WAKE_UP_PROTECTION
+        VIT_Status = VIT_SetControlParameters(VITHandleSelfWake, &VITControlParams);
+#endif /* SELF_WAKE_UP_PROTECTION */
+
         if (VIT_Status != VIT_SUCCESS)
         {
             LOGE("[ASR] %d state failed %d", state, VIT_Status);
         }
-        if (g_vitAfeMemoryUsed > VIT_AFE_MEMORY_SIZE_BYTES)
-        {
-            LOGE("VIT AFE memory buffer is too small %d < %d.", VIT_AFE_MEMORY_SIZE_BYTES, g_vitAfeMemoryUsed);
-            vTaskDelay(100);
-            while (1)
-                ;
-        }
     }
 }
+
+#if SELF_WAKE_UP_PROTECTION
+static VIT_ReturnStatus_en initialize_asr_self_wake_up()
+{
+    VIT_ReturnStatus_en VIT_Status = VIT_SUCCESS;
+    VIT_Status                     = VIT_SetModel((const PL_UINT8 *)s_vitModelMemory, VIT_MODEL_IN_FAST_MEM);
+    /*
+     *   VIT get memory table: Get size info per memory type
+     */
+    VIT_Status = VIT_GetMemoryTable(PL_NULL, // VITHandle param should be NULL
+                                    &VITMemoryTableSelfWake, &VITInstParams);
+    if (VIT_Status != VIT_SUCCESS)
+    {
+        LOGE("VIT_GetMemoryTable error: %d\r\n", VIT_Status);
+        return VIT_Status;
+    }
+    /*
+     *   Reserve memory space: Malloc for each memory type
+     */
+    s_vitSlowMemoryUsedSelfWake = 0;
+    s_vitFastMemoryUsedSelfWake = 0;
+    for (int i = 0; i < PL_NR_MEMORY_REGIONS; i++)
+    {
+        /* Log the memory size */
+        if (VITMemoryTableSelfWake.Region[i].Size != 0)
+        {
+            /* reserve memory space
+               NB: VITMemoryTable.Region[PL_MEMREGION_PERSISTENT_FAST_DATA] should be allocated
+               in the fastest memory of the platform (when possible) - this is not the case in this example.
+             */
+            if (VITMemoryTableSelfWake.Region[i].Type == PL_PERSISTENT_SLOW_DATA)
+            {
+                pMemorySelfWake[i] = &s_vitSlowMemorySelfWake[s_vitSlowMemoryUsedSelfWake];
+                s_vitSlowMemoryUsedSelfWake += VITMemoryTableSelfWake.Region[i].Size;
+                s_vitSlowMemoryUsedSelfWake += MEMORY_ALIGNMENT - (s_vitSlowMemoryUsedSelfWake % MEMORY_ALIGNMENT);
+            }
+            else
+            {
+                pMemorySelfWake[i] = &s_vitFastMemorySelfWake[s_vitFastMemoryUsedSelfWake];
+                s_vitFastMemoryUsedSelfWake += VITMemoryTableSelfWake.Region[i].Size;
+                s_vitFastMemoryUsedSelfWake += MEMORY_ALIGNMENT - (s_vitFastMemoryUsedSelfWake % MEMORY_ALIGNMENT);
+            }
+            VITMemoryTableSelfWake.Region[i].pBaseAddress = (void *)pMemorySelfWake[i];
+        }
+    }
+    /*
+     *    Create VIT Instance for self wake engine
+     */
+    VITHandleSelfWake = PL_NULL; // force to null address for correct memory initialization
+    VIT_Status        = VIT_GetInstanceHandle(&VITHandleSelfWake, &VITMemoryTableSelfWake, &VITInstParams);
+    if (VIT_Status != VIT_SUCCESS)
+    {
+        InitPhase_Error = PL_TRUE;
+        LOGD("VIT_GetInstanceHandle error: %d\r\n", VIT_Status);
+    }
+
+    /*
+     *    Test the reset (OPTIONAL)
+     */
+    if (!InitPhase_Error)
+    {
+        VIT_Status = VIT_ResetInstance(VITHandleSelfWake);
+        if (VIT_Status != VIT_SUCCESS)
+        {
+            InitPhase_Error = PL_TRUE;
+            LOGD("VIT_ResetInstance error: %d\r\n", VIT_Status);
+        }
+    }
+
+    return VIT_Status;
+}
+#endif /* SELF_WAKE_UP_PROTECTION */
+
+#ifdef ASR_TO_AFE_PROCESSED_NOTIFY
+/*!
+ * @brief Notify the AFE about the finish of the run.
+ */
+static void voice_algo_asr_run_notify(hal_valgo_status_t status);
+#endif /* ASR_TO_AFE_PROCESSED_NOTIFY */
 
 static VIT_ReturnStatus_en initialize_asr()
 {
     VIT_ReturnStatus_en VIT_Status = VIT_ERROR_UNDEFINED;
 
-    const uint8_t *asrModelAddr = get_model_address(s_AsrEngine.voiceConfig.multilingual, s_AsrEngine.voiceConfig.demo);
-    uint32_t asrModelSize       = get_model_size(s_AsrEngine.voiceConfig.multilingual, s_AsrEngine.voiceConfig.demo);
+    uint8_t *asrModelAddr = NULL;
+    uint32_t asrModelSize = 0;
+
+    get_voice_model(&asrModelAddr, &asrModelSize, s_AsrEngine.voiceConfig.multilingual, s_AsrEngine.voiceConfig.demo);
 
     if ((asrModelAddr == NULL) || (asrModelSize == 0) || (asrModelSize > MODEL_MEMORY_SIZE_BYTES))
     {
         LOGE("VIT get model for %d failed. Pointer %p size %d for demo %d.", s_AsrEngine.voiceConfig.demo, asrModelAddr,
-             asrModelSize);
+             asrModelSize, s_AsrEngine.voiceConfig.demo);
         return VIT_DUMMY_ERROR;
     }
     else
     {
         memcpy(s_vitModelMemory, asrModelAddr, asrModelSize);
-        VIT_Status = VIT_SetModel((const PL_UINT8 *)s_vitModelMemory, VIT_MODEL_IN_RAM);
+        VIT_Status = VIT_SetModel((const PL_UINT8 *)s_vitModelMemory, VIT_MODEL_IN_FAST_MEM);
         if (VIT_Status != VIT_SUCCESS)
         {
             LOGE("VIT_SetModel error: %d\r\n", VIT_Status);
@@ -216,9 +318,10 @@ static VIT_ReturnStatus_en initialize_asr()
      *   Configure VIT Instance Parameters
      */
     VITInstParams.SampleRate_Hz   = VIT_SAMPLE_RATE;
-    VITInstParams.SamplesPerFrame = VIT_SAMPLES_PER_FRAME;
+    VITInstParams.SamplesPerFrame = VIT_SAMPLES_PER_30MS_FRAME;
     VITInstParams.NumberOfChannel = NUMBER_OF_CHANNELS;
     VITInstParams.DeviceId        = DEVICE_ID;
+    VITInstParams.APIVersion      = VIT_API_VERSION;
 
     /*
      *   VIT get memory table: Get size info per memory type
@@ -241,9 +344,10 @@ static VIT_ReturnStatus_en initialize_asr()
         /* Log the memory size */
         if (VITMemoryTable.Region[i].Size != 0)
         {
-            // reserve memory space
-            // NB: VITMemoryTable.Region[PL_MEMREGION_PERSISTENT_FAST_DATA] should be allocated
-            //      in the fastest memory of the platform (when possible) - this is not the case in this example.
+            /* reserve memory space
+               NB: VITMemoryTable.Region[PL_MEMREGION_PERSISTENT_FAST_DATA] should be allocated
+               in the fastest memory of the platform (when possible) - this is not the case in this example.
+             */
             if (VITMemoryTable.Region[i].Type == PL_PERSISTENT_SLOW_DATA)
             {
                 pMemory[i] = &s_vitSlowMemory[s_vitSlowMemoryUsed];
@@ -263,14 +367,14 @@ static VIT_ReturnStatus_en initialize_asr()
     if (s_vitSlowMemoryUsed > SLOW_MEMORY_SIZE_BYTES)
     {
         LOGE("VIT slow memory buffer is too small %d < %d.", SLOW_MEMORY_SIZE_BYTES, s_vitSlowMemoryUsed);
-        vTaskDelay(100);
+        vTaskDelay(pdMS_TO_TICKS(100));
         while (1)
             ;
     }
     if (s_vitFastMemoryUsed > FAST_MEMORY_SIZE_BYTES)
     {
         LOGE("VIT fast memory buffer is too small %d < %d.", FAST_MEMORY_SIZE_BYTES, s_vitFastMemoryUsed);
-        vTaskDelay(100);
+        vTaskDelay(pdMS_TO_TICKS(100));
         while (1)
             ;
     }
@@ -283,7 +387,8 @@ static VIT_ReturnStatus_en initialize_asr()
     if (VIT_Status != VIT_SUCCESS)
     {
         InitPhase_Error = PL_TRUE;
-        LOGD("VIT_GetInstanceHandle error: %d\r\n", VIT_Status);
+        LOGE("VIT_GetInstanceHandle error: %d\r\n", VIT_Status);
+        return VIT_Status;
     }
 
     /*
@@ -298,6 +403,9 @@ static VIT_ReturnStatus_en initialize_asr()
             LOGD("VIT_ResetInstance error: %d\r\n", VIT_Status);
         }
     }
+#if SELF_WAKE_UP_PROTECTION
+    VIT_Status = initialize_asr_self_wake_up();
+#endif /* SELF_WAKE_UP_PROTECTION */
 
     /*
      *   Set and Apply VIT control parameters
@@ -311,7 +419,6 @@ static void VIT_ModelInfo(void)
 {
     VIT_ReturnStatus_en VIT_Status;
     VIT_ModelInfo_st Model_Info;
-    VIT_LibInfo_st Lib_Info;
 
     LOGD("  ");
 
@@ -320,7 +427,6 @@ static void VIT_ModelInfo(void)
     if (VIT_Status == VIT_SUCCESS)
     {
         LOGD("--- VIT Model info ---");
-        LOGD("Model Release: 0x%04x\r\n", Model_Info.VIT_Model_Release);
         if (Model_Info.pLanguage != PL_NULL)
         {
             LOGD("Language: %s\r\n", Model_Info.pLanguage);
@@ -330,15 +436,19 @@ static void VIT_ModelInfo(void)
         {
             const char *ptr;
 
-            ptr = Model_Info.pWakeWord;
+            ptr = Model_Info.pWakeWord_List;
+
+            LOGD("Wake Words count: %d", Model_Info.NbOfWakeWords);
             if (ptr != PL_NULL)
             {
-                LOGD("Wake Word:");
-                LOGD("    '%s'\r\n", ptr);
+                for (uint16_t i = 0; i < Model_Info.NbOfWakeWords; i++)
+                {
+                    LOGD("    '%s'", ptr);
+                    ptr += strlen(ptr) + 1;
+                }
             }
 
             LOGD("Voice Commands count: %d", Model_Info.NbOfVoiceCmds);
-
             ptr = Model_Info.pVoiceCmds_List;
             if (ptr != PL_NULL)
             {
@@ -361,20 +471,17 @@ static void VIT_ModelInfo(void)
 
     LOGD("  ");
 
-    /* VIT Library information */
-    VIT_Status = VIT_GetLibInfo(&Lib_Info);
-    if (VIT_Status == VIT_SUCCESS)
-    {
-        LOGD("--- VIT Library info ---");
-        LOGD("LIB Release: 0x%04x", Lib_Info.VIT_LIB_Release);
-        LOGD("Features:    0x%04x", Lib_Info.VIT_Features_Supported);
-        LOGD("Channels:    %d", Lib_Info.NumberOfChannels_Supported);
-    }
-    else
-    {
-        LOGD("VIT_GetLibInfo error: %d", VIT_Status);
-    }
+    /* Public call to VIT_GetStatusParameters */
+    VIT_StatusParams_st *pVIT_StatusParam_Buffer = (VIT_StatusParams_st *)&VIT_StatusParams_Buffer;
 
+    VIT_GetStatusParameters(VITHandle, pVIT_StatusParam_Buffer, sizeof(VIT_StatusParams_Buffer));
+    LOGD(" VIT Status Params");
+    LOGD(" VIT LIB Release   = 0x%04x", pVIT_StatusParam_Buffer->VIT_LIB_Release);
+    LOGD(" VIT Model Release = 0x%04x", pVIT_StatusParam_Buffer->VIT_MODEL_Release);
+    LOGD(" VIT Features supported by the lib = 0x%04x", pVIT_StatusParam_Buffer->VIT_Features_Supported);
+    LOGD(" VIT Features Selected             = 0x%04x", pVIT_StatusParam_Buffer->VIT_Features_Selected);
+    LOGD(" Number of channels supported by VIT lib = %d", pVIT_StatusParam_Buffer->NumberOfChannels_Supported);
+    LOGD(" Device Selected : device id = %d", pVIT_StatusParam_Buffer->Device_Selected);
     LOGD("  ");
 }
 
@@ -479,8 +586,7 @@ static bool isLanguageSupported(asr_language_t language)
             ret = true;
             break;
         case ASR_FRENCH:
-            /* For now French is not supported */
-            ret = false;
+            ret = true;
             break;
 
         default:
@@ -515,98 +621,266 @@ static hal_valgo_status_t voice_algo_dev_asr_init(voice_algo_dev_t *dev, valgo_d
 }
 
 /*!
+ * @brief Check if the detected command was not a "fake" one triggered by the device's speaker.
+ */
+cmd_state_t confirmDetectedCommand(bool realCmdDetected, bool fakeCmdDetected, void *ampPlaying, uint32_t *delayMs)
+{
+    static uint32_t realWakeWordDuration = 0;
+
+    cmd_state_t cmdConfirmed = kWwNotSure;
+
+    /* This function is called once per 30ms. */
+    *delayMs = realWakeWordDuration * 30;
+
+#if SELF_WAKE_UP_PROTECTION
+    if (ampPlaying != NULL)
+    {
+        if (realWakeWordDuration == 0)
+        {
+            if (realCmdDetected)
+            {
+                realWakeWordDuration = 1;
+            }
+        }
+        else
+        {
+            realWakeWordDuration++;
+        }
+
+        if (fakeCmdDetected)
+        {
+            cmdConfirmed         = kWwRejected;
+            realWakeWordDuration = 0;
+        }
+        else if (realWakeWordDuration > 20)
+        {
+            cmdConfirmed         = kWwConfirmed;
+            realWakeWordDuration = 0;
+        }
+        else
+        {
+            cmdConfirmed = kWwNotSure;
+        }
+    }
+    else
+#endif /* SELF_WAKE_UP_PROTECTION */
+    {
+        if (realCmdDetected || (realWakeWordDuration > 0))
+        {
+            cmdConfirmed         = kWwConfirmed;
+            realWakeWordDuration = 0;
+        }
+        else
+        {
+            cmdConfirmed = kWwNotSure;
+        }
+    }
+
+    return cmdConfirmed;
+}
+
+/*!
  * @brief ASR main task
  */
 static hal_valgo_status_t voice_algo_dev_asr_run(const voice_algo_dev_t *dev, void *data)
 {
     hal_valgo_status_t status = kStatus_HAL_ValgoSuccess;
     VIT_ReturnStatus_en VIT_Status;
-    VIT_WakeWord_st WakeWord;
-    VIT_VoiceCommand_st VoiceCommand;
-    VIT_DetectionStatus_en VIT_DetectionResults = VIT_NO_DETECTION;
+    static VIT_WakeWord_st s_WakeWord;
+    static VIT_VoiceCommand_st s_VoiceCommand;
+    static VIT_WakeWord_st s_WakeWordSelfWake;
+    static VIT_VoiceCommand_st s_VoiceCommandSelfWake;
+    VIT_DetectionStatus_en VIT_DetectionResults         = VIT_NO_DETECTION;
+    VIT_DetectionStatus_en VIT_DetectionResultsSelfWake = VIT_NO_DETECTION;
+    uint32_t cmdConfirmedDelayMs                        = 0;
+    cmd_state_t cmdConfirmed                            = kWwNotSure;
+    int16_t *cleanSound                                 = NULL;
+    int16_t *speakerSound                               = NULL;
+    bool realCmdDetected                                = false;
+    bool fakeCmdDetected                                = false;
 
     msg_payload_t *audioIn = (msg_payload_t *)data;
-    if ((audioIn->data == NULL) || (audioIn->size != VIT_SAMPLES_PER_FRAME * NUMBER_OF_CHANNELS))
+    if ((audioIn->data != NULL) && (audioIn->size == ASR_INPUT_SAMPLES))
     {
-        status = kStatus_HAL_ValgoError;
-        LOGE("[ASR] Received invalid audio packet: addr=%d, size = %d", (uint32_t)audioIn->data, audioIn->size);
+        cleanSound   = audioIn->data;
+        speakerSound = NULL;
     }
+#if SELF_WAKE_UP_PROTECTION
+    else if ((audioIn->data != NULL) && (audioIn->size == (ASR_INPUT_SAMPLES * 2)))
+    {
+        cleanSound   = audioIn->data;
+        speakerSound = &(((int16_t *)audioIn->data)[ASR_INPUT_SAMPLES]);
+    }
+#endif /* SELF_WAKE_UP_PROTECTION */
     else
     {
+        status = kStatus_HAL_ValgoError;
+        LOGE("[ASR] Received invalid audio packet: addr=0x%X, size=%d", (uint32_t)audioIn->data, audioIn->size);
+    }
+
+    if (status == kStatus_HAL_ValgoSuccess)
+    {
+        uint32_t *dumpMark = audioIn->data_marks;
         if (s_asrSession == ASR_SESSION_STOPPED)
         {
             /* Skip Voice Processing for Stopped state. */
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+            postMarkCleanStreamSKIPPED(dumpMark, ASR_INPUT_FRAMES);
+
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
         }
         else
         {
-            if (VITInstParams.NumberOfChannel == _1CHAN)
+#ifdef ENABLE_OUTPUT_DEV_AudioDump
+            if (VITControlParams.OperatingMode == VIT_OPERATING_MODE_WW)
             {
-                VIT_InputBuffers.pBuffer_Chan1 = (PL_INT16 *)audioIn->data; // PCM buffer: 16-bit - 16kHz - mono
-                VIT_InputBuffers.pBuffer_Chan2 = PL_NULL;
-                VIT_InputBuffers.pBuffer_Chan3 = PL_NULL;
+                postMarkCleanStreamConsumedByWW(dumpMark, ASR_INPUT_FRAMES);
             }
-            else if (VITInstParams.NumberOfChannel == _2CHAN)
+            else
             {
-                VIT_InputBuffers.pBuffer_Chan1 = (PL_INT16 *)audioIn->data; // PCM buffer: 16-bit - 16kHz
-                VIT_InputBuffers.pBuffer_Chan2 =
-                    (PL_INT16 *)(audioIn->data + AUDIO_PCM_SINGLE_CH_SMPL_COUNT * AFE_INPUT_MIC_SAMPLE_BYTES);
-                VIT_InputBuffers.pBuffer_Chan3 = PL_NULL;
+                postMarkCleanStreamConsumedByCMD(dumpMark, ASR_INPUT_FRAMES);
             }
+#endif /* ENABLE_OUTPUT_DEV_AudioDump */
+            VIT_Status = VIT_Process(VITHandle, cleanSound, &VIT_DetectionResults);
 
-            VIT_Status = VIT_Process(VITHandle, &VIT_InputBuffers, &VIT_DetectionResults);
             if (VIT_Status != VIT_SUCCESS)
             {
                 LOGE("VIT_Process error: %d\r\n", VIT_Status);
                 status = kStatus_HAL_ValgoError;
             }
-            else if (VIT_DetectionResults == VIT_WW_DETECTED)
+            else if ((VIT_DetectionResults == VIT_WW_DETECTED) || (VIT_DetectionResults == VIT_VC_DETECTED))
             {
-                VIT_Status = VIT_GetWakeWordFound(VITHandle, &WakeWord);
-                if (VIT_Status == VIT_SUCCESS)
+                if (VIT_DetectionResults == VIT_WW_DETECTED)
                 {
-                    LOGD("[ASR] Wake Word: %s(%d)", WakeWord.pWW_Name, WakeWord.WW_Id);
-                }
-                s_AsrEngine.voiceResult.status = ASR_WW_DETECT;
-                /* VIT supports only one language at a time so it does not offer the detected
-                 * language because it is the one used during initialisation. */
-                s_AsrEngine.voiceResult.language = s_AsrEngine.voiceConfig.multilingual;
-
-                asr_set_state(ASR_SESSION_STOPPED);
-
-                voice_algo_asr_result_notify(&s_AsrEngine.voiceResult, 0);
-            }
-            else if (VIT_DetectionResults == VIT_VC_DETECTED)
-            {
-                /* Retrieve id of the Voice Command detected
-                   String of the Command can also be retrieved (when WW and CMDs strings are integrated in Model) */
-                VIT_Status = VIT_GetVoiceCommandFound(VITHandle, &VoiceCommand);
-                if (VIT_Status != VIT_SUCCESS)
-                {
-                    LOGE("VIT_GetVoiceCommandFound error: %d\r\n", VIT_Status);
-                    status = kStatus_HAL_ValgoError;
-                }
-                else
-                {
-                    if ((VoiceCommand.Cmd_Id > 0) && (VoiceCommand.pCmd_Name != PL_NULL))
+                    VIT_Status = VIT_GetWakeWordFound(VITHandle, &s_WakeWord);
+                    if (VIT_Status != VIT_SUCCESS)
                     {
-                        LOGD("[ASR] Command: %s(%d)", VoiceCommand.pCmd_Name, VoiceCommand.Cmd_Id);
-
+                        LOGE("VIT_GetWakeWordFound error: %d\r\n", VIT_Status);
+                        status = kStatus_HAL_ValgoError;
+                    }
+                    else if (s_WakeWord.Id > 0)
+                    {
+                        realCmdDetected                = true;
+                        s_AsrEngine.voiceResult.status = ASR_WW_DETECT;
+                        /* VIT supports only one language at a time so it does not offer the detected
+                         * language because it is the one used during initialisation. */
+                        s_AsrEngine.voiceResult.language = s_AsrEngine.voiceConfig.multilingual;
+                    }
+                }
+                else if (VIT_DetectionResults == VIT_VC_DETECTED)
+                {
+                    /* Retrieve id of the Voice Command detected
+                       String of the Command can also be retrieved (when WW and CMDs strings are integrated in Model) */
+                    VIT_Status = VIT_GetVoiceCommandFound(VITHandle, &s_VoiceCommand);
+                    if (VIT_Status != VIT_SUCCESS)
+                    {
+                        LOGE("VIT_GetVoiceCommandFound error: %d\r\n", VIT_Status);
+                        status = kStatus_HAL_ValgoError;
+                    }
+                    else if (s_VoiceCommand.Id > 0)
+                    {
+                        realCmdDetected                   = true;
                         s_AsrEngine.voiceResult.keywordID = get_action_index_from_keyword(
-                            s_AsrEngine.voiceConfig.multilingual, s_AsrEngine.voiceConfig.demo, VoiceCommand.Cmd_Id);
+                            s_AsrEngine.voiceConfig.multilingual, s_AsrEngine.voiceConfig.demo, s_VoiceCommand.Id);
 
                         s_AsrEngine.voiceResult.status = ASR_CMD_DETECT;
                         /* VIT supports only one language at a time so it does not offer the detected
                          * language because it is the one used during initialization. */
                         s_AsrEngine.voiceResult.language = s_AsrEngine.voiceConfig.multilingual;
-
-                        voice_algo_asr_result_notify(&s_AsrEngine.voiceResult, 0);
                     }
                 }
             }
+#if SELF_WAKE_UP_PROTECTION
+            if (speakerSound != NULL)
+            {
+                VIT_Status = VIT_Process(VITHandleSelfWake, speakerSound, &VIT_DetectionResultsSelfWake);
+
+                if (VIT_Status != VIT_SUCCESS)
+                {
+                    LOGE("VIT_Process error: %d\r\n", VIT_Status);
+                    status = kStatus_HAL_ValgoError;
+                }
+                else if ((VIT_DetectionResultsSelfWake == VIT_WW_DETECTED) ||
+                         (VIT_DetectionResultsSelfWake == VIT_VC_DETECTED))
+                {
+                    if (VIT_DetectionResultsSelfWake == VIT_WW_DETECTED)
+                    {
+                        VIT_Status = VIT_GetWakeWordFound(VITHandleSelfWake, &s_WakeWordSelfWake);
+                        if (VIT_Status != VIT_SUCCESS)
+                        {
+                            LOGE("VIT_GetWakeWordFound error: %d\r\n", VIT_Status);
+                            status = kStatus_HAL_ValgoError;
+                        }
+                        else if (s_WakeWordSelfWake.Id > 0)
+                        {
+                            fakeCmdDetected = true;
+                        }
+                    }
+                    else if (VIT_DetectionResultsSelfWake == VIT_VC_DETECTED)
+                    {
+                        VIT_Status = VIT_GetVoiceCommandFound(VITHandleSelfWake, &s_VoiceCommandSelfWake);
+                        if (VIT_Status != VIT_SUCCESS)
+                        {
+                            LOGE("VIT_GetVoiceCommandFound error: %d\r\n", VIT_Status);
+                            status = kStatus_HAL_ValgoError;
+                        }
+                        else if (s_VoiceCommandSelfWake.Id > 0)
+                        {
+                            fakeCmdDetected = true;
+                        }
+                    }
+                }
+            }
+#endif /* SELF_WAKE_UP_PROTECTION */
+            cmdConfirmed = confirmDetectedCommand(realCmdDetected, fakeCmdDetected, speakerSound, &cmdConfirmedDelayMs);
+
+            if (cmdConfirmed == kWwConfirmed)
+            {
+                if (s_AsrEngine.voiceResult.status == ASR_WW_DETECT)
+                {
+                    LOGD("[ASR] Wake Word: %s(%d)", (s_WakeWord.pName == PL_NULL) ? "UNDEF" : s_WakeWord.pName,
+                         s_WakeWord.Id);
+
+                    voice_algo_asr_result_notify(&s_AsrEngine.voiceResult, s_WakeWord.StartOffset);
+                }
+                else if (s_AsrEngine.voiceResult.status == ASR_CMD_DETECT)
+                {
+                    LOGD("[ASR] Command: %s(%d)", (s_VoiceCommand.pName == PL_NULL) ? "UNDEF" : s_VoiceCommand.pName,
+                         s_VoiceCommand.Id);
+                    s_AsrEngine.voiceResult.demo = s_AsrEngine.voiceConfig.demo;
+                    voice_algo_asr_result_notify(&s_AsrEngine.voiceResult, 0);
+#ifdef SMART_TLHMI_HOMEPANEL
+                    asr_set_state(ASR_SESSION_STOPPED);
+#endif /*SMART_TLHMI_HOMEPANEL*/
+                }
+            }
+#if SELF_WAKE_UP_PROTECTION
+            else if (cmdConfirmed == kWwRejected)
+            {
+                if (VIT_DetectionResultsSelfWake == VIT_WW_DETECTED)
+
+                {
+                    LOGD("[ASR] REJECTED Wake Word: %s(%d)",
+                         (s_WakeWordSelfWake.pName == PL_NULL) ? "UNDEF" : s_WakeWordSelfWake.pName,
+                         s_WakeWordSelfWake.Id);
+                }
+                else if (VIT_DetectionResultsSelfWake == VIT_VC_DETECTED)
+                {
+                    LOGD("[ASR] REJECTED Command: %s(%d)",
+                         (s_VoiceCommandSelfWake.pName == PL_NULL) ? "UNDEF" : s_VoiceCommandSelfWake.pName,
+                         s_VoiceCommandSelfWake.Id);
+                }
+            }
+#endif /* SELF_WAKE_UP_PROTECTION */
         }
 
         s_afeDataProcessed++;
     }
+
+#ifdef ASR_TO_AFE_PROCESSED_NOTIFY
+    voice_algo_asr_run_notify(status);
+#endif /* ASR_TO_AFE_PROCESSED_NOTIFY */
+
     return status;
 }
 
@@ -636,12 +910,15 @@ static hal_valgo_status_t voice_algo_dev_input_notify(const voice_algo_dev_t *de
         case (SET_MULTILINGUAL_CONFIG):
             if (isLanguageSupported(event.set_multilingual_config.languages))
             {
-                s_AsrEngine.voiceConfig.multilingual    = event.set_multilingual_config.languages;
-                s_AsrEngine.voiceConfig.currentLanguage = event.set_multilingual_config.languages;
-                VIT_Deinit();
-                initialize_asr();
+                if (s_AsrEngine.voiceConfig.currentLanguage != event.set_multilingual_config.languages)
+                {
+                    s_AsrEngine.voiceConfig.multilingual    = event.set_multilingual_config.languages;
+                    s_AsrEngine.voiceConfig.currentLanguage = event.set_multilingual_config.languages;
+                    VIT_Deinit();
+                    initialize_asr();
 
-                asr_set_state(asrSession);
+                    asr_set_state(asrSession);
+                }
             }
             else
             {
@@ -664,16 +941,40 @@ static hal_valgo_status_t voice_algo_dev_input_notify(const voice_algo_dev_t *de
         {
             set_asr_config_event_t config = (set_asr_config_event_t)event.set_asr_config;
 
-            LOGD("[ASR] Set Voice Model: demo %d, language %d(%s)", config.demo,
-                    config.lang, get_language_str(config.lang));
+            LOGD("[ASR] Set Voice Model: demo %d, language %d(%s)", config.demo, config.lang,
+                 get_language_str(config.lang));
 
-            /* (config.demo == UNDEFINED_INFERENCE) means use the same current demo. */
-            if (config.demo != UNDEFINED_INFERENCE)
+            uint8_t model_initialization_flag = 0, voice_session_update_flag = 0;
+
+            if ((config.demo != UNDEFINED_INFERENCE) && (config.demo != s_AsrEngine.voiceConfig.demo))
             {
-                /* Wake Word is a part of the current demo so we should not update "demo" field. */
-                if (config.demo != ASR_WW)
+                switch (config.demo)
                 {
-                    s_AsrEngine.voiceConfig.demo = config.demo;
+                    case ASR_WW: /* Only need to update voice session */
+                    {
+                        if (s_asrSession != ASR_SESSION_WAKE_WORD)
+                        {
+                            voice_session_update_flag = 1;
+                            asrSession                = ASR_SESSION_WAKE_WORD;
+                        }
+                    }
+                    break;
+
+                    default: /* Model is updated. Need to re-initialize voice engine */
+                    {
+                        s_AsrEngine.voiceConfig.demo = config.demo;
+                        model_initialization_flag    = 1;
+                    }
+                    break;
+                }
+            }
+
+            if ((config.demo != UNDEFINED_INFERENCE) && (config.demo == s_AsrEngine.voiceConfig.demo))
+            {
+                if (s_asrSession != ASR_SESSION_VOICE_COMMAND)
+                {
+                    voice_session_update_flag = 1;
+                    asrSession                = ASR_SESSION_VOICE_COMMAND;
                 }
             }
 
@@ -687,11 +988,7 @@ static hal_valgo_status_t voice_algo_dev_input_notify(const voice_algo_dev_t *de
                     {
                         s_AsrEngine.voiceConfig.multilingual    = config.lang;
                         s_AsrEngine.voiceConfig.currentLanguage = config.lang;
-
-                        /* Reinitialize VIT engine in case the current language has been changed => model changed. */
-                        LOGD("VIT engine re-initialization");
-                        VIT_Deinit();
-                        initialize_asr();
+                        model_initialization_flag = 1; /*Language is changed. Need to re-initialize voice engine */
                     }
                 }
                 else
@@ -702,17 +999,17 @@ static hal_valgo_status_t voice_algo_dev_input_notify(const voice_algo_dev_t *de
                 }
             }
 
-            if (config.demo == UNDEFINED_INFERENCE)
+            if (model_initialization_flag)
+            {
+                VIT_Deinit();
+                initialize_asr();
+                LOGD("VIT engine re-initialization");
+                asr_set_state(
+                    asrSession); /* After voice engine re-initialized, need to set voice session to previous one */
+            }
+            else if (voice_session_update_flag)
             {
                 asr_set_state(asrSession);
-            }
-            else if (config.demo == ASR_WW)
-            {
-                asr_set_state(ASR_SESSION_WAKE_WORD);
-            }
-            else
-            {
-                asr_set_state(ASR_SESSION_VOICE_COMMAND);
             }
         }
         break;
@@ -773,6 +1070,31 @@ static void voice_algo_asr_result_notify(asr_inference_result_t *result, uint32_
         }
     }
 }
+
+#ifdef ASR_TO_AFE_PROCESSED_NOTIFY
+/*!
+ * @brief Notify the AFE about the finish of the run. */
+
+static void voice_algo_asr_run_notify(hal_valgo_status_t status)
+{
+    valgo_event_t valgo_event;
+    static event_voice_t runNotifyEvent;
+
+    if (voice_algo_dev_asr.cap.callback != NULL)
+    {
+        runNotifyEvent.event_base.eventId   = ASR_TO_AFE_PROCESSED;
+        runNotifyEvent.event_base.eventInfo = kEventInfo_Local;
+        runNotifyEvent.data                 = (void *)status;
+
+        /* Build Valgo event */
+        valgo_event.eventId = kVAlgoEvent_AsrToAfeProcessed;
+        valgo_event.data    = &runNotifyEvent;
+        valgo_event.size    = sizeof(event_voice_t);
+        valgo_event.copy    = 0;
+        voice_algo_dev_asr.cap.callback(voice_algo_dev_asr.id, valgo_event, 0);
+    }
+}
+#endif /* ASR_TO_AFE_PROCESSED_NOTIFY */
 
 int HAL_VoiceAlgoDev_Asr_VIT_Register()
 {

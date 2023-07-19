@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Overview
 
 One of the most important steps in the the creation of any embedded software project is peripheral integration.
@@ -54,7 +50,7 @@ To register a device to its manager,
 each HAL device implements a registration function which is called prior to starting the managers themselves.
 For example, the "register" function for the push button input device looks as follows:
 
-```c title="HAL/common/hal_input_push_buttons.c"
+```c title=""
 int HAL_InputDev_PushButtons_Register()
 {
     int error = 0;

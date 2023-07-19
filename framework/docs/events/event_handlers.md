@@ -1,8 +1,4 @@
----
-sidebar_position: 2
----
-
-# Event Handlers
+# Event handlers
 
 Because events are the primary means by which the framework communicates between devices,
 a mechanism to respond to those events is necessary for them to be useful.
@@ -31,7 +27,7 @@ Each HAL device may define its own handlers for any given event.
 For example,
 a developer may want the RGB LEDs to turn green when a face is recognized,
 but have the UI display a specific overlay for that same event.
-To do this,
+To do it,
 the RGB Output HAL device and the UI Output HAL device can each implement an `InferComplete` handler which will be called by their manager
 when an "InferComplete" event is received.
 
@@ -41,17 +37,17 @@ nor does it have to implement an `InputNotify` handler (applicable for most devi
 or an `InferComplete` handler (applicable only for output devices).
 ```
 
-## Default Handlers
+## Default handlers
 
 Default event handlers are exactly what their name would suggest -- the default means by which a device handles events.
-A HAL device's default event handlers (`InputNotify`, `InferComplete`, etc.) can be found in the HAL device driver itself.
+A HAL device's default event handlers (`InputNotify`, `InferComplete`, and so on.) can be found in the HAL device driver itself.
 
-Nearly every device has a default handler implemented **[1]**,
+Nearly every device has a default handler implemented,
 although most devices will only actually handle a few types of events.
 
 <!-- TODO: Add default handler for each device -->
 ```{note}
-**[1]** Devices which do not have a handler implemented can be extended to have one by using a similar device as an example.
+Devices which do not have a handler implemented can be extended to have one by using a similar device as an example.
 ```
 
 ```c title="Example default handler"
@@ -115,30 +111,30 @@ const static display_dev_operator_t s_DisplayDev_LcdifOps = {
 };
 ```
 
-Managers will know not to call the `InputNotify` or other handler if that handler points to `NULL`.
+Managers will not call the `InputNotify` or other handler if that handler points to `NULL`.
 
 A device's default handler whether for `InputNotify` events or `InferComplete` or otherwise can be overridden by an `app-specific` handler.
 
-## App-specific Handlers
+## App-specific handlers
 
 App-specific handlers are device handlers which are defined for a specific "app".
 
-Not every device will need to implement an app-specific handler,
-but because default handlers are implemented using `WEAK` functions **[2]**, any device which has a default event handler can have that handler overridden.
+Not every device must implement an app-specific handler,
+but because default handlers are implemented using `WEAK` functions, any device which has a default event handler can have that handler overridden.
 
 ```{note}
-**[2]** Some devices may not have implemented their default handlers using `WEAK` functions,
+Some devices may not have implemented their default handlers using `WEAK` functions,
 but may be updated to do so in the future.
 ```
 
 For example,
 the IR + White LEDs may not require project-specific handlers
-because they will always react the same way to a `kEventID_SetConfig`/`kEventID_GetConfig` command.
+because they always react the same way to a `kEventID_SetConfig`/`kEventID_GetConfig` command.
 Alternatively, an application may wish to override and/or extend that default event handling behavior so that,
 for example,
 the LEDs increase in brightness when an "Add Face" event is received.
 
 To help denote an app-specific handler,
-App-specific handlers will start with the `APP` prefix.
+App-specific handlers start with the `APP` prefix.
 If an app-specific handler for a device exists,
 it can be found in `source/event_handlers/{APP_NAME}_{DEV_TYPE}_{DEV_NAME}.c`

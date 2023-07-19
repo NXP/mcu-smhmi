@@ -23,7 +23,7 @@
  * Defines
  ******************************************************************************/
 
-typedef enum _multicore_events
+enum _multicore_events
 {
     kMulticore_DataEvent,
 };
@@ -45,7 +45,12 @@ typedef enum _multicore_events
 
 #define MULTICORE_RCV_NAME       "MessageBuffer"
 #define MULTICORE_RCV_TASK_NAME  "multicore_rcv_task"
-#define MULTICORE_RCV_TASK_STACK 1024 * 2
+#define MULTICORE_RCV_TASK_STACK (MB_STORAGE_BUFFER_SIZE / sizeof(StackType_t) + 1024)
+#if FWK_SUPPORT_STATIC_ALLOCATION
+FWKDATA static StackType_t s_MulticoreRcvTaskStack[MULTICORE_RCV_TASK_STACK];
+FWKDATA static StaticTask_t s_MulticoreRvcTaskTCB;
+static void *s_MulticoreRcvTaskTCBReference = (void *)&s_MulticoreRvcTaskTCB;
+#endif
 
 /*******************************************************************************
  * Prototypes
@@ -53,7 +58,7 @@ typedef enum _multicore_events
 static hal_multicore_status_t HAL_MulticoreDev_MessageBuffer_Deinit(const multicore_dev_t *dev);
 static hal_multicore_status_t HAL_MulticoreDev_MessageBuffer_Send(const multicore_dev_t *dev,
                                                                   void *data,
-                                                                  uint32_t size);
+                                                                  unsigned int size);
 static hal_multicore_status_t HAL_MulticoreDev_MessageBuffer_InputNotify(const multicore_dev_t *dev, void *data);
 static hal_multicore_status_t HAL_MulticoreDev_MessageBuffer_Start(const multicore_dev_t *dev);
 static hal_multicore_status_t HAL_MulticoreDev_MessageBuffer_Init(multicore_dev_t *dev,
@@ -133,7 +138,7 @@ static void FreeRtosMessageBuffersEventHandler(uint16_t eventData, void *context
 static void _HAL_MulticoreDev_MessageBuffer_RcvMsgHandler(void *param)
 {
     /* Size to cover on MAX message. Can be lowered if we know what we send */
-    static uint8_t pMessageBufferRcv[MB_STORAGE_BUFFER_SIZE];
+    uint8_t pMessageBufferRcv[MB_STORAGE_BUFFER_SIZE];
 
     while (1)
     {
@@ -159,7 +164,7 @@ static hal_multicore_status_t HAL_MulticoreDev_MessageBuffer_Deinit(const multic
     return status;
 }
 
-static hal_multicore_status_t HAL_MulticoreDev_MessageBuffer_Send(const multicore_dev_t *dev, void *data, uint32_t size)
+static hal_multicore_status_t HAL_MulticoreDev_MessageBuffer_Send(const multicore_dev_t *dev, void *data, unsigned int size)
 {
     hal_multicore_status_t status = kStatus_HAL_MulticoreSuccess;
 
@@ -207,8 +212,14 @@ static hal_multicore_status_t HAL_MulticoreDev_MessageBuffer_Start(const multico
     /* Send one more event to be sure the other core got it */
     (void)MCMGR_TriggerEvent(kMCMGR_RemoteApplicationEvent, true);
 
+#if FWK_SUPPORT_STATIC_ALLOCATION
+    if (xTaskCreateStatic(_HAL_MulticoreDev_MessageBuffer_RcvMsgHandler, MULTICORE_RCV_TASK_NAME,
+                          MULTICORE_RCV_TASK_STACK, NULL, uxTaskPriorityGet(NULL), s_MulticoreRcvTaskStack,
+                          s_MulticoreRcvTaskTCBReference) == NULL)
+#else
     if (xTaskCreate(_HAL_MulticoreDev_MessageBuffer_RcvMsgHandler, MULTICORE_RCV_TASK_NAME, MULTICORE_RCV_TASK_STACK,
                     NULL, uxTaskPriorityGet(NULL), NULL) != pdPASS)
+#endif
     {
         LOGE("[MessageBuffer] Task creation failed!.");
         while (1)

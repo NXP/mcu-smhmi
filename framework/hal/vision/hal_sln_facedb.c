@@ -78,6 +78,36 @@ typedef struct _facedb_entry
     unsigned char face[];
 } facedb_entry_t;
 
+/*******************************************************************************
+ * Prototypes
+ ******************************************************************************/
+static int _Facedb_Lock();
+static void _Facedb_Unlock();
+static void _Facedb_SetMetaDataDefault();
+static void _Facedb_SetFaceDataDefault();
+static facedb_status_t _Facedb_Init();
+static sln_flash_status_t _Facedb_Load();
+static sln_flash_status_t _Facedb_UpdateMetadata();
+static sln_flash_status_t _Facedb_SaveFace(uint16_t id);
+static sln_flash_status_t _Facedb_DeleteFace(uint16_t id);
+static sln_flash_status_t _Facedb_DeleteAllFaces();
+
+static facedb_status_t HAL_Facedb_Init(uint16_t featureSize);
+static facedb_status_t HAL_Facedb_SaveFace(void);
+static facedb_status_t HAL_Facedb_AddFace(uint16_t id, char *name, void *face, int size);
+static facedb_status_t HAL_Facedb_DelFaceWithID(uint16_t id);
+static facedb_status_t HAL_Facedb_DelFaceWithName(char *name);
+static facedb_status_t HAL_Facedb_GetIdsAndFaces(uint16_t *face_ids, void **pFace);
+static facedb_status_t HAL_Facedb_GetFace(uint16_t id, void **pFace);
+static facedb_status_t HAL_Facedb_GenId(uint16_t *new_id);
+static facedb_status_t HAL_Facedb_GetIds(uint16_t *face_ids);
+static bool HAL_Facedb_GetSaveStatus(uint16_t id);
+static int HAL_Facedb_GetCount(void);
+static char *HAL_Facedb_GetName(uint16_t id);
+static facedb_status_t HAL_Facedb_UpdateName(uint16_t id, char *name);
+static facedb_status_t HAL_Facedb_UpdateFace(uint16_t id, char *name, void *face, int size);
+static facedb_status_t HAL_Facedb_GetIdWithName(char *name, uint16_t *pId);
+
 /* Database buffer */
 static uint16_t s_FaceEntrySize;
 static uint32_t s_FaceDBSize;
@@ -102,21 +132,6 @@ const facedb_ops_t g_facedb_ops = {
     .getNameWithId   = HAL_Facedb_GetName,
     .getIdWithName   = HAL_Facedb_GetIdWithName,
 };
-
-/*******************************************************************************
- * Prototypes
- ******************************************************************************/
-
-static int _Facedb_Lock();
-static void _Facedb_Unlock();
-static void _Facedb_SetMetaDataDefault();
-static void _Facedb_SetFaceDataDefault();
-static facedb_status_t _Facedb_Init();
-static sln_flash_status_t _Facedb_Load();
-static sln_flash_status_t _Facedb_UpdateMetadata();
-static sln_flash_status_t _Facedb_SaveFace(uint16_t id);
-static sln_flash_status_t _Facedb_DeleteFace(uint16_t id);
-static sln_flash_status_t _Facedb_DeleteAllFaces();
 
 /*******************************************************************************
  * Code
@@ -278,7 +293,7 @@ static facedb_status_t _Facedb_Init()
     if (status == kStatus_HAL_FlashDirExist)
     {
         /* Already exists assume everything is ok don't over engineer for now */
-        uint32_t len = sizeof(facedb_metadata_t);
+        unsigned int len = sizeof(facedb_metadata_t);
         status       = FWK_Flash_Read(METADATA_FILE_NAME, &s_OasisMetadata, 0, &len);
         if (status == kStatus_HAL_FlashSuccess)
         {
@@ -919,7 +934,7 @@ facedb_status_t HAL_Facedb_UpdateName(uint16_t id, char *name)
     {
         ret = kFaceDBStatus_NotInit;
     }
-    else if ((id >= MAX_FACE_DB_SIZE) && (name == NULL))
+    else if ((id >= MAX_FACE_DB_SIZE) || (name == NULL))
     {
         ret = kFaceDBStatus_WrongParam;
     }

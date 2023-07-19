@@ -30,13 +30,22 @@
 #include "fwk_log.h"
 #include "fwk_camera_manager.h"
 
+#include "hal_event_descriptor_common.h"
 
-#define CAMERA_NAME "FLEXIO_GC0308"
+#define CAMERA_NAME              "FLEXIO_GC0308"
 #define CAMERA_RGB_CONTROL_FLAGS (kCAMERA_HrefActiveHigh | kCAMERA_DataLatchOnRisingEdge)
 
+#ifdef ENABLE_CAMERA_DEV_FlexioGc0308_FRAME_BUFFER_SDRAM
+AT_NONCACHEABLE_SECTION_ALIGN_SDRAM(
+    static uint8_t s_FrameBuffers[CAMERA_DEV_FlexioGc0308_BUFFER_COUNT][CAMERA_DEV_FlexioGc0308_HEIGHT]
+                                 [CAMERA_DEV_FlexioGc0308_WIDTH * CAMERA_DEV_FlexioGc0308_BPP],
+    64);
+#else
 AT_NONCACHEABLE_SECTION_ALIGN(
-static uint8_t s_FrameBuffers[CAMERA_DEV_FlexioGc0308_BUFFER_COUNT][CAMERA_DEV_FlexioGc0308_HEIGHT]
-                            [CAMERA_DEV_FlexioGc0308_WIDTH * CAMERA_DEV_FlexioGc0308_BPP], 64);
+    static uint8_t s_FrameBuffers[CAMERA_DEV_FlexioGc0308_BUFFER_COUNT][CAMERA_DEV_FlexioGc0308_HEIGHT]
+                                 [CAMERA_DEV_FlexioGc0308_WIDTH * CAMERA_DEV_FlexioGc0308_BPP],
+    64);
+#endif
 static uint8_t *s_pCurrentFrameBuffer = NULL;
 /*******************************************************************************
  * Definitions
@@ -51,7 +60,6 @@ static uint8_t *s_pCurrentFrameBuffer = NULL;
 #define FLEXIO_CAMERA_VSYNC_PIN_INDEX      BOARD_FLEXIO_CAMERA_VSYNC_PIN_INDEX
 #define FLEXIO_CAMERA_VSYNC_IRQn           BOARD_FLEXIO_CAMERA_VSYNC_IRQn
 #define FLEXIO_CAMERA_VSYNC_IRQHandler     BOARD_FLEXIO_CAMERA_VSYNC_IRQHandler
-
 
 #if defined(__cplusplus)
 extern "C" {
@@ -121,7 +129,7 @@ static camera_device_handle_t s_CameraDevice = {
     .ops      = &gc0308_ops,
 };
 
-static uint8_t s_CurRGBExposureMode = CAMERA_EXPOSURE_MODE_AUTO_LEVEL0;
+static uint8_t s_CurRGBExposureMode = CAMERA_EXPOSURE_MODE_AUTO;
 
 void FLEXIO_CAMERA_VSYNC_IRQHandler()
 {
@@ -153,7 +161,6 @@ static void _HAL_CameraDev_InitResources(void)
 
 static void _HAL_CameraDev_InitInterface(void)
 {
-
 }
 
 static uint8_t _HAL_CameraDev_GetTargetExposureMode(uint8_t curMode, uint8_t direction)
@@ -192,7 +199,19 @@ static void HAL_CameraDev_FlexioGc0308_ReceiverCallback(camera_receiver_handle_t
     if (dev->cap.callback != NULL)
     {
         uint8_t fromISR = __get_IPSR();
-        dev->cap.callback(dev, kCameraEvent_SendFrame, dev->cap.param, fromISR);
+        camera_event_t event;
+        event.eventId = kCameraEvent_SendFrame;
+#ifdef ENABLE_CAMERA_DEV_FlexioGc0308_REMOTE_CSC
+        /*
+         * Need local camera manager to handle the dequeue message,
+         * then send remote dequeue message to remote camera manager for CSC.
+         */
+        event.eventInfo = kEventInfo_DualCore;
+#else
+        event.eventInfo = kEventInfo_Local;
+#endif /* ENABLE_CAMERA_DEV_FlexioGc0308_REMOTE_CSC */
+
+        dev->cap.callback(dev, event, dev->cap.param, fromISR);
     }
 }
 
@@ -242,6 +261,8 @@ static hal_camera_status_t _HAL_CameraDev_FlexioGc0308_Init(camera_dev_t *dev)
         CAMERA_DEVICE_Control(&s_CameraDevice, kCAMERA_DeviceMonoMode, CAMERA_MONO_MODE_ENABLED);
     }
 
+    CAMERA_DEVICE_Control(&s_CameraDevice, kCAMERA_DeviceExposureMode, s_CurRGBExposureMode);
+
     for (int i = 0; i < CAMERA_DEV_FlexioGc0308_BUFFER_COUNT; i++)
     {
         CAMERA_RECEIVER_SubmitEmptyBuffer(&s_CameraReceiver, (uint32_t)s_FrameBuffers[i]);
@@ -259,7 +280,10 @@ static void _HAL_CameraDev_FlexioGc0308_InitTask(void *pvParameters)
     if (dev->cap.callback != NULL)
     {
         uint8_t fromISR = __get_IPSR();
-        dev->cap.callback(dev, kCameraEvent_CameraDeviceInit, &ret, fromISR);
+        camera_event_t event;
+        event.eventId   = kCameraEvent_CameraDeviceInit;
+        event.eventInfo = kEventInfo_Local;
+        dev->cap.callback(dev, event, &ret, fromISR);
     }
     vTaskDelete(NULL);
 }
@@ -353,37 +377,37 @@ static hal_camera_status_t HAL_CameraDev_FlexioGc0308_Notify(const camera_dev_t 
     LOGI("++HAL_CameraDev_FlexioGc0308_Notify");
     int error = 0;
 
-//    event_base_t eventBase = *(event_base_t *)data;
-//    switch (eventBase.eventId)
-//    {
-//        case kEventID_ControlRGBCamExposure:
-//        {
-//            if (flexio_gc0308_format == kPixelFormat_UYVY1P422_RGB)
-//            {
-//                event_common_t event = *(event_common_t *)data;
-//                uint8_t mode;
-//                if (event.brightnessControl.enable == true)
-//                {
-//                    mode = _HAL_CameraDev_GetTargetExposureMode(s_CurRGBExposureMode, event.brightnessControl.direction);
-//                }
-//                else
-//                {
-//                    mode = CAMERA_EXPOSURE_MODE_AUTO_LEVEL0;
-//                }
-//                if (mode != s_CurRGBExposureMode)
-//                {
-//                    CAMERA_DEVICE_Control(&s_CameraDevice, kCAMERA_DeviceExposureMode, (int32_t)mode);
-//                    s_CurRGBExposureMode = mode;
-//                }
-//            }
-//        }
-//        break;
-//        default:
-//            break;
-//    }
+    event_base_t eventBase = *(event_base_t *)data;
+    switch (eventBase.eventId)
+    {
+        case kEventID_ControlRGBCamExposure:
+        {
+            event_common_t event = *(event_common_t *)data;
+            uint8_t mode;
+            if (event.brightnessControl.enable == true)
+            {
+                if (event.brightnessControl.direction == 1)
+                {
+                    CAMERA_DEVICE_Control(&s_CameraDevice, kCAMERA_DeviceBrightnessAdjust, CAMERA_BRIGHTNESS_INCREASE);
+                }
+                else if (event.brightnessControl.direction == 0)
+                {
+                    CAMERA_DEVICE_Control(&s_CameraDevice, kCAMERA_DeviceBrightnessAdjust, CAMERA_BRIGHTNESS_DECREASE);
+                }
+            }
+            else
+            {
+                CAMERA_DEVICE_Control(&s_CameraDevice, kCAMERA_DeviceBrightnessAdjust, CAMERA_BRIGHTNESS_DEFAULT);
+            }
+        }
+        break;
+        default:
+            break;
+    }
+
+    LOGI("--HAL_CameraDev_FlexioGc0308_Notify");
 
     return error;
-    LOGI("--HAL_CameraDev_FlexioGc0308_Notify");
 }
 
 const static camera_dev_operator_t s_CameraDev_FlexioGc0308Ops = {
@@ -412,7 +436,11 @@ static camera_dev_t s_CameraDev_FlexioGc0308 = {
             .flip     = CAMERA_DEV_FlexioGc0308_FLIP,
             .swapByte = CAMERA_DEV_FlexioGc0308_SWAPBYTE,
         },
-    .cap = { .callback = NULL, .param    = NULL,},
+    .cap =
+        {
+            .callback = NULL,
+            .param    = NULL,
+        },
 };
 
 int HAL_CameraDev_FlexioGc0308_Register()

@@ -1,10 +1,6 @@
----
-sidebar_position: 2
----
+# Input manager
 
-# Vision Input Manager
-
-Input manager manages the input HAL devices which can be registered into the system.
+The Input manager manages the input HAL devices which can be registered into the system.
 
 ## APIs
 
@@ -50,5 +46,5 @@ int FWK_InputManager_Deinit();
 ```
 
 ```{warning}
-Calling this function is unnecessary in most applications and should be used with caution.
+Calling this function is unnecessary in most applications and must be used with caution.
 ```

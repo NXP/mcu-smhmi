@@ -1,22 +1,19 @@
----
-sidebar_position: 1
-title: Introduction
----
-
 # Framework Introduction
 
-This section will discuss the architecture design of the framework.
-The application is primarily designed around the use of a "framework" architecture which is composed of several different parts.
+This section describes the architectural design of the framework.
+The application is primarily designed around the use of a "framework" architecture that is composed of several different parts.
 
-These constituent parts include:
+The constituent parts include:
 
 * Device Managers
 * Hardware Abstraction Layer (HAL) Devices
 * Messages/Events
 
-![Architecture Diagram](./img/framework_arch_diagram.jpg)
+<fig>
+    <image href="./img/framework_arch_diagram.jpg"/>
+</fig>
 
-Each of these different components will be discussed in detail in the following sections.
+Each of these different components is discussed in detail in the following sections.
 
 ## Design Goals
 
@@ -30,8 +27,8 @@ In the course of a project's development, many problems can arise which hinder t
 The framework architecture was designed to help combat those problems.
 
 The framework is designed with the goal of speeding up the time to market for vision and other machine-learning applications.
-In order to ensure a speedy time to market, it is critical that the software itself is easy to understand and easy to modify.
-Keeping this goal in mind, the architecture of the framework was designed to be easy to modify without being restrictive, and without coming at the cost of performance.
+To ensure a speedy time to market, it is critical that the software itself is easy to understand and easy to modify.
+Keeping this goal in mind, the architecture of the framework is easy to modify without being restrictive, and without coming at the cost of performance.
 
 ## Relevant Files
 

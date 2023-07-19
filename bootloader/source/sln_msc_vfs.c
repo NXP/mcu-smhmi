@@ -1,5 +1,5 @@
 /*
- * Copyright 2019, 2021-2022 NXP
+ * Copyright 2019, 2021-2023 NXP
  * All rights reserved.
  *
  *
@@ -21,6 +21,7 @@ typedef struct _file_name
     fica_img_type_t image_type;
 } file_name_t;
 
+#define MSD_FILE_MINIMUM_SIZE 4096
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
@@ -118,6 +119,7 @@ void MSC_VFS_SetTransferState(msc_vfs_state_t transferState)
 
 status_t MSC_VFS_WriteResponse(uint32_t offset, uint32_t size, uint8_t *buffer)
 {
+    static uint32_t expectedNewOffset = 0;
     int32_t flashError = SLN_FLASH_NO_ERROR;
     status_t error     = kStatus_Success;
 
@@ -143,16 +145,28 @@ status_t MSC_VFS_WriteResponse(uint32_t offset, uint32_t size, uint8_t *buffer)
                 {
                     uint8_t fileMaxName = sizeof(((fat_file_t *)0)->name);
                     file                = (fat_file_t *)&buffer[idx - fileMaxName + sizeof(ext) - 1];
+
                     break;
                 }
             }
 
             if (file->size != 0)
             {
-                memcpy(fileName, file->name, 11);
-                configPRINTF(("[Write Response] File Attributes: Name - %s, Size - %d\r\n", fileName, file->size));
-                s_fileLength = file->size;
-                fileFound    = true;
+                if (file->size < MSD_FILE_MINIMUM_SIZE)
+                {
+                    configPRINTF(("[Error] File size %d B is too small for minimal admitted %d B\r\n", file->size,
+                                  MSD_FILE_MINIMUM_SIZE));
+
+                    s_transferState = TRANSFER_ERROR;
+                    error           = kStatus_Fail;
+                }
+                else
+                {
+                    memcpy(fileName, file->name, 11);
+                    configPRINTF(("[Write Response] File Attributes: Name - %s, Size - %d\r\n", fileName, file->size));
+                    s_fileLength = file->size;
+                    fileFound    = true;
+                }
             }
         }
         else
@@ -217,6 +231,7 @@ status_t MSC_VFS_WriteResponse(uint32_t offset, uint32_t size, uint8_t *buffer)
                 fileFound = false;
                 memset(fileName, 0, sizeof(fileName));
                 s_startOffset   = offset;
+                expectedNewOffset = offset;
                 s_transferState = TRANSFER_ACTIVE;
             }
         }
@@ -237,17 +252,30 @@ status_t MSC_VFS_WriteResponse(uint32_t offset, uint32_t size, uint8_t *buffer)
     {
         if (offset >= s_startOffset)
         {
+            static uint8_t isFirstRetransmission = false;
             uint32_t imgOffset = ((offset - s_startOffset) * s_lbaLength);
 
             /* Usb adds some padding */
             size = ((s_dataWritten + size) > s_fileLength) ? (s_fileLength - s_dataWritten) : size;
 
+            if ((offset < expectedNewOffset) && (isFirstRetransmission == false))
+            {
+                configPRINTF(
+                    ("[Write Response] Retransmission occurred offset 0x%X, addr 0x%X, \r\n", offset, imgOffset));
+                isFirstRetransmission = true;
+            }
+
             error = SLN_Update_WriteImg(s_imgType, imgOffset, buffer, size);
 
             if (kStatus_Success == error)
             {
-                configPRINTF(("[Write Response] Saving %d of data to 0x%X...\r\n", size, imgOffset));
-                s_dataWritten += size;
+                if (expectedNewOffset == offset)
+                {
+                    configPRINTF(("[Write Response] Saving %d of data to 0x%X...\r\n", size, imgOffset));
+                    s_dataWritten += size;
+                    isFirstRetransmission = false;
+                    expectedNewOffset     = offset + size / s_lbaLength;
+                }
             }
             else
             {
@@ -261,7 +289,7 @@ status_t MSC_VFS_WriteResponse(uint32_t offset, uint32_t size, uint8_t *buffer)
 
         if ((s_fileLength > 0) && (s_dataWritten >= s_fileLength))
         {
-            s_transferState = TRANSFER_FINAL;
+            s_transferState = TRANSFER_PENDING;
             // Wake up the application task to finalize transfer
             vTaskResume(*s_usbAppTaskHandle);
         }

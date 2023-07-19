@@ -189,7 +189,11 @@ static float s_FaceRecProgress              = 0.0f;
 static TimerHandle_t s_FaceRecProgressTimer = NULL;
 static bool s_FaceRecOSDEnable              = false;
 
-#define SESSION_TIMER_IN_MS      (60000)
+#if AQT_TEST
+#define SESSION_TIMER_IN_MS (15000)
+#else
+#define SESSION_TIMER_IN_MS (60000)
+#endif /* AQT_TEST */
 #define SESSION_UPDATE_INTERVALS (60)
 #define FACE_REC_UPDATE_INTERVAL (SESSION_TIMER_IN_MS / SESSION_UPDATE_INTERVALS)
 
@@ -488,20 +492,20 @@ static asr_language_t _ConvertUILanguageToASRLanguage(language_t language)
 
 static void _SetPromptLanguage(asr_language_t language)
 {
-    static event_common_t s_LanguagePromptEvent;
+    static event_voice_t prompt_event;
     LOGD("[UI] Set prompt language %d", language);
 
     output_event_t output_event = {0};
 
     output_event.eventId   = kOutputEvent_OutputInputNotify;
-    output_event.data      = &s_LanguagePromptEvent;
+    output_event.data      = &prompt_event;
     output_event.copy      = 1;
-    output_event.size      = sizeof(s_LanguagePromptEvent);
+    output_event.size      = sizeof(prompt_event);
     output_event.eventInfo = kEventInfo_DualCore;
 
     /* Prepare message for MQS */
-    s_LanguagePromptEvent.eventBase.eventId = SET_MULTILINGUAL_CONFIG;
-    s_LanguagePromptEvent.data              = (void *)language;
+    prompt_event.event_base.eventId                = SET_MULTILINGUAL_CONFIG;
+    prompt_event.set_multilingual_config.languages = language;
 
     uint8_t fromISR = __get_IPSR();
     s_OutputDev_UiCoffeeMachine.cap.callback(s_OutputDev_UiCoffeeMachine.id, output_event, fromISR);
@@ -757,11 +761,11 @@ static void _StopFaceRec(int stop)
 
     if (stop)
     {
-        s_FaceRecEvent.oasisState.state = kOasisState_Stopped;
+        s_FaceRecEvent.oasisState.state = kOASISLiteState_Stopped;
     }
     else
     {
-        s_FaceRecEvent.oasisState.state = kOasisState_Running;
+        s_FaceRecEvent.oasisState.state = kOASISLiteState_Running;
     }
     uint8_t fromISR = __get_IPSR();
     s_OutputDev_UiCoffeeMachine.cap.callback(s_OutputDev_UiCoffeeMachine.id, output_event, fromISR);
@@ -834,7 +838,7 @@ void UI_Finished_Callback()
         if (s_IsWaitingRegisterSelection == 0)
         {
             _SessionTimer_SetPeriod(SESSION_TIMER_IN_MS / 2);
-            _SetVoiceModel(ASR_CMD_USER_REGISTER, s_UserLanguage, 0);
+            _SetVoiceModel(ASR_CMD_COFFEE_MACHINE, s_UserLanguage, 0);
             _PlayPrompt(PROMPT_REGISTER_SELECTION, 0);
 
             s_IsWaitingRegisterSelection = 1;
@@ -848,6 +852,8 @@ void UI_Finished_Callback()
 
 void UI_WidgetInteraction_Callback()
 {
+#if AQT_TEST
+#else
     _SessionTimer_Start();
 
     if (s_Recognized == 0)
@@ -856,6 +862,7 @@ void UI_WidgetInteraction_Callback()
         _FaceRecProgressTimer_Start();
         _DrawPreviewUI(g_PreviewMode, 1, s_FaceRecIndicator, 1, s_FaceRecProgress);
     }
+#endif /* AQT_TEST */
 }
 
 void UI_SetLanguage_Callback(language_t language)
@@ -1059,7 +1066,7 @@ static hal_output_status_t _InferComplete_Vision(const output_dev_t *dev, void *
                                        pResult->debug_info.rgbBrightness, pResult->face_recognized, pResult->face_id);
             }
 
-            if ((pResult->face_recognized) && (pResult->face_id >= 0))
+            if ((pResult->face_recognized) && (pResult->face_id != INVALID_FACE_ID))
             {
                 // known user
                 _FaceRecProgressTimer_Stop();
@@ -1131,11 +1138,11 @@ static hal_output_status_t _InferComplete_Vision(const output_dev_t *dev, void *
                 if (promptId != PROMPT_INVALID)
                 {
                     /* TODO: Add correct language */
-                    _SetVoiceModel(ASR_CMD_USER_REGISTER, s_UserLanguage, 0);
+                    _SetVoiceModel(ASR_CMD_COFFEE_MACHINE, s_UserLanguage, 0);
                     _PlayPrompt(promptId, 0);
                 }
             }
-            else if ((pResult->face_recognized) && (pResult->face_id < 0))
+            else if ((pResult->face_recognized) && (pResult->face_id == INVALID_FACE_ID))
             {
                 // new user
                 LOGD("[UI] Coffee machine: New user found");
@@ -1443,6 +1450,12 @@ static hal_output_status_t HAL_OutputDev_UiCoffeeMachine_InferComplete(const out
         return error;
     }
 
+#if AQT_TEST
+    if (source == kOutputAlgoSource_Voice)
+    {
+        _InferComplete_Voice(dev, inferResult, currentScreenId);
+    }
+#else
     if (source == kOutputAlgoSource_Vision)
     {
         _InferComplete_Vision(dev, inferResult, currentScreenId);
@@ -1451,6 +1464,8 @@ static hal_output_status_t HAL_OutputDev_UiCoffeeMachine_InferComplete(const out
     {
         _InferComplete_Voice(dev, inferResult, currentScreenId);
     }
+#endif /* AQT_TEST */
+
     LVGL_UNLOCK();
 
     return error;

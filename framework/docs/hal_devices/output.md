@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Output Devices
 
 The `Output` HAL devices is used to represent any device which produces output
@@ -209,11 +205,11 @@ typedef struct _gfx_surface
 ## Example
 
 The project has several output devices implemented for use as-is or for use as reference for implementing new output devices.
-Source files for these output HAL devices can be found under "HAL/common".
+Source files for these output HAL devices can be found under "framework/hal/output/".
 
-Below is an example of the RGB LED HAL device driver "HAL/common/hal_output_rgb_led.c":
+Below is an example of the RGB LED HAL device driver "framework/hal/output/hal_output_rgb_led.c":
 
-```c title="HAL/common/hal_output_rgb_led.c"
+```c title="framework/hal/output/hal_output_rgb_led.c"
 static hal_output_status_t HAL_OutputDev_RgbLed_Init(output_dev_t *dev);
 static hal_output_status_t HAL_OutputDev_RgbLed_Start(const output_dev_t *dev);
 static hal_output_status_t HAL_OutputDev_RgbLed_InferComplete(const output_dev_t *dev,

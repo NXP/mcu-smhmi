@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Display Devices
 
 The `Display` HAL device provides an abstraction to represent many different display panels which may have different controllers, resolutions, color formats, and event connection interfaces.
@@ -407,11 +403,11 @@ The `param` field is not currently used by the framework in any way.
 ## Example
 
 The project has several display devices implemented for use as-is or as reference for implementing new display devices.
-The source files for these display HAL devices can be found under "HAL/common".
+The source files for these display HAL devices can be found under "framework/hal/display".
 
-Below is an example of the "rk024hh298" display HAL device driver "HAL/common/hal_display_lcdif_rk024hh298.c".
+Below is an example of the "rk024hh298" display HAL device driver "framework/hal/display/hal_display_lcdif_rk024hh298.c".
 
-```c title="HAL/common/hal_display_lcdif_rk024hh298.c"
+```c title="framework/hal/display/hal_display_lcdif_rk024hh298.c"
 
 hal_display_status_t HAL_DisplayDev_LcdifRk024hh2_Init(display_dev_t *dev,
                                                         int width,

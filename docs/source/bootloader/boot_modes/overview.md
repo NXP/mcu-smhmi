@@ -19,6 +19,6 @@ More information on each of these modes can be found in the subsequent sections 
 
 ## How is boot mode determined?
 
-To determine the boot mode to be enter, the bootloader checks several different boot flags which get set based on various conditions being met.
+To determine the boot mode, the bootloader checks several different boot flags, which are set based on various conditions.
 
-For each different boot mode (excluding Normal boot which is taken by default), there is a different corresponding boot flag. The means which boot flag gets set depends on the boot mode in question and the platform being used. On the SLN-TLHMI-IOT for example, the MSD boot flag is set when the `SW0` button is held during bootup.
+For each different boot mode (excluding Normal boot, which is taken by default), there is a different corresponding boot flag. Boot flag gets set depending on the boot mode in question and the platform being used. On the SLN-TLHMI-IOT, for example, the MSD boot flag is set when the `SW0` button is held during bootup.

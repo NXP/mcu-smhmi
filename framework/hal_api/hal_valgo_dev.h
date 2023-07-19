@@ -69,6 +69,9 @@ typedef enum _valgo_event_id
     kVAlgoEvent_AsrToAfeFeedback = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_VAlgo, 7),
     kVAlgoEvent_AsrToAudioDump   = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_VAlgo, 8),
 
+    /* Voice algo notify AFE about samples processed */
+    kVAlgoEvent_AsrToAfeProcessed = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_VAlgo, 9),
+
     kVAlgoEvent_Count
 } valgo_event_id_t;
 
@@ -77,7 +80,7 @@ typedef struct _valgo_event
 {
     /* Eventid from the list above.*/
     valgo_event_id_t eventId;
-    event_info_t     eventInfo;
+    event_info_t eventInfo;
     /* Pointer to a struct of data that needs to be forwarded. */
     void *data;
     /* Size of the struct that needs to be forwarded. */

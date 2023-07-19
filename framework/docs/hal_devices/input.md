@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Input Devices
 
 The `Input` HAL device provides an abstraction to implement a variety of devices which may capture data in many different ways,
@@ -271,7 +267,7 @@ typedef struct _input_event
 ## Example
 
 The project has several input devices implemented for use as-is or for use as reference for implementing new input devices.
-Source files for these input HAL devices can be found under "HAL/common" and "HAL/face_rec".
+Source files for these input HAL devices can be found under "framework/hal/input/".
 
 Below is an example of a push button input HAL device driver:
 

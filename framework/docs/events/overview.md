@@ -1,12 +1,8 @@
----
-sidebar_position: 1
----
-
 # Overview
 
 Events are a means by which information is communicated between different devices via their managers.
 
-## Event Triggers
+## Event triggers
 
 Events can correspond to many different happenings during the runtime of the application,
 and can include things like:
@@ -15,22 +11,22 @@ and can include things like:
 - Face detected
 - Shell command received
 
-When an event is triggered, the device which first received the event will communicate that event to its manager,
-which in turn will notify other managers designated to receive the event.
+When an event is triggered, the device that first received the event communicates that event to its manager,
+which in turn notifys other managers designated to receive the event.
 
 For example,
 when a button is pressed,
-a flow similar to the following will take place:
+a flow similar to the following takes place:
 
-1. The "Push Button" HAL device will receive an interrupt corresponding to the button that was pressed.
+1. The "Push Button" HAL device receives an interrupt corresponding to the button that was pressed.
 2. Inside the HAL device's interrupt handler,
-   the device will associate an event with the button that was pressed.
-3. The HAL device will specify which managers should receive the event.
-4. The HAL device will forward the event to its manager.
+   the device associates an event with the button that was pressed.
+3. The HAL device specifies which managers should receive the event.
+4. The HAL device forwards the event to its manager.
 
-The code which corresponds to this scenario can be seen in the below excerpts from "HAL/common/hal_input_push_buttons.c" and app source located in "source/event_handlers" folder, respectively.
+The code that corresponds to this scenario can be seen in the below excerpts from "framework/hal/input/hal_input_push_buttons.c" and app source located in "source/event_handlers" folder, respectively.
 
-```c title="HAL/common/hal_input_push_buttons.c" {10,11}
+```c title="" {10,11}
 void _HAL_InputDev_IrqHandler(button_data_t *button, switch_press_type_t pressType)
 {
     if (s_InputDev_PushButtons.cap.callback != NULL)
@@ -99,7 +95,7 @@ which relays input events to each of the managers specified in an event's `recei
     return ret;
 ```
 
-## Types of Events
+## Types of events
 
 Events can be used to communicate all sorts of information,
 but the two types of events defined by default are
@@ -107,7 +103,7 @@ but the two types of events defined by default are
 
 Both types of events represent different information being communicated to and by the HAL devices.
 
-### InferComplete Events
+### InferComplete events
 
 Inference events are used to indicate that a vision/voice algorithm HAL device has completed a stage in its inference pipeline.
 
@@ -116,7 +112,7 @@ Currently, only output HAL devices can respond to `InferComplete` events.
 This is not true of `InputNotify` events.
 ```
 
-In the current application, this can refer to several things, including:
+In the current application, it can refer to several things, including:
 
 - Face detected
 - Face recognized
@@ -128,10 +124,10 @@ the output manager attempts to call the `inferComplete` event handler of each of
 (assuming the device has implemented an `inferComplete` function).
 
 As part of the `inferComplete` function call,
-the output manager will also communicate the HAL device from which the event originated, the ID of the event received,
+the output manager also communicates the HAL device from which the event originated, the ID of the event received,
 as well as any additional information related to the event that was generated.
 
-For example, a "Face Recognized" event will also include the ID of the face being recognized. Below is an example of how the RGB LED HAL device responds to several different events.
+For example, a "Face Recognized" event also includes the ID of the face being recognized. Below is an example of how the RGB LED HAL device responds to several different events.
 
 ```c title="RGB Output Device InferComplete Handler" {12,15}
 static hal_output_status_t HAL_OutputDev_RgbLed_InferComplete(const output_dev_t *dev,
@@ -166,9 +162,9 @@ static hal_output_status_t HAL_OutputDev_RgbLed_InferComplete(const output_dev_t
 
 For more information about handling events, see "event handlers" section.
 
-### InputNotify Events
+### InputNotify events
 
-Input events are events which indicate that input has been received by an input HAL device.
+Input events are events that indicate that input has been received by an input HAL device.
 
 ```{note}
 Only input HAL devices can generate an "InputNotify" event.
@@ -185,7 +181,7 @@ Examples of input events include:
 
 The event to generate for a given input is decided by the device which receives the input.
 
-For example, the Push Button device associates different events based on the different button presses and the duration of those button presses, either long or short presses.
+For example, the Push-Button device associates different events based on the different button presses and the duration of those button presses, either long or short presses.
 
 ```c title="Push Button Event Generator"
     switch (button)
@@ -228,8 +224,10 @@ For example, the Push Button device associates different events based on the dif
 ```
 
 Alongside an input event,
-the HAL device from which the event originated may also relay additional information as well.
-Depending on the event, this may correspond to the button that was pressed, the shell command and args that were received, etc.
+the HAL device from which the event originated may also relay additional information.
+Depending on the event,
+this may correspond to the button that was pressed,
+the shell command and args that were received, and so on.
 
 In the above example,
 we can see that pressing the SW3 push button generates a `kEventFaceRecID_AddUser` event, specifying that there is no name for the face to add.

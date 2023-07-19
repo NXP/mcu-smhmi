@@ -1,7 +1,3 @@
----
-sidebar_position: 10
----
-
 # Voice Algorithm Devices
 
 The Voice Algorithm HAL device type represents an abstraction to do voice recognition based on clean stream AFE generated.

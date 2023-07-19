@@ -28,25 +28,27 @@
 /*******************************************************************************
  * AFE / ASR Definitions
  ******************************************************************************/
-
-#ifdef ENABLE_DSMT_ASR
-#define ASR_INPUT_FRAMES   3
-#define ASR_INPUT_CHANNELS 1
+/* Below defines are not configurable. */
+#define AFE_INPUT_AMP_SAMPLE_BYTES 2
 /* Set AFE_INPUT_MIC_SAMPLE_BYTES to 2 for 16 bit depth microphone data.
  * Set AFE_INPUT_MIC_SAMPLE_BYTES to 4 for 32 bit depth microphone data. */
 #define AFE_INPUT_MIC_SAMPLE_BYTES 4
-#else
-#define ASR_INPUT_FRAMES   1
-#define ASR_INPUT_CHANNELS 2
-/* VIT Engine does not support AFE yet.
- * And so far VIT only support 16bit microphone raw data as input */
-#define AFE_INPUT_MIC_SAMPLE_BYTES 2
-#endif /* ENABLE_DSMT_ASR */
+#define AFE_INPUT_MIC_BUFFER_SIZE  (AUDIO_PCM_SAMPLE_COUNT * AFE_INPUT_MIC_SAMPLE_BYTES)
+#define AFE_INPUT_AMP_BUFFER_SIZE  (AUDIO_PCM_SINGLE_CH_SMPL_COUNT * AFE_INPUT_AMP_SAMPLE_BYTES)
 
-#define AFE_INPUT_MIC_BUFFER_SIZE (AUDIO_PCM_SAMPLE_COUNT * AFE_INPUT_MIC_SAMPLE_BYTES)
-#define AFE_INPUT_AMP_BUFFER_SIZE (AUDIO_PCM_SINGLE_CH_SMPL_COUNT * AFE_INPUT_AMP_SAMPLE_BYTES)
-#define AFE_OUTPUT_BUFFER_SIZE    (AUDIO_PCM_SINGLE_CH_SMPL_COUNT * AFE_OUTPUT_SAMPLE_BYTES * ASR_INPUT_CHANNELS)
-#define ASR_INPUT_BUFFER_SIZE     (AUDIO_PCM_SINGLE_CH_SMPL_COUNT * ASR_INPUT_SAMPLE_BYTES * ASR_INPUT_FRAMES * ASR_INPUT_CHANNELS)
+#define AFE_OUTPUT_SAMPLE_BYTES 2
+#define AFE_OUTPUT_BUFFER_SIZE  (AUDIO_PCM_SINGLE_CH_SMPL_COUNT * AFE_OUTPUT_SAMPLE_BYTES)
+
+#define ASR_INPUT_SAMPLE_BYTES 2
+#define ASR_INPUT_FRAMES       3
+#define ASR_INPUT_CHANNELS     1
+#define ASR_INPUT_CYCLE_SLOTS  10
+#define ASR_INPUT_SAMPLES      (AUDIO_PCM_SINGLE_CH_SMPL_COUNT * ASR_INPUT_FRAMES)
+#define ASR_INPUT_BUFFER_SIZE \
+    (AUDIO_PCM_SINGLE_CH_SMPL_COUNT * ASR_INPUT_SAMPLE_BYTES * ASR_INPUT_FRAMES * ASR_INPUT_CHANNELS)
+
+/* "Hey NXP" and its corresponding translations in other languages may take up to 3s to be spoken. */
+#define WAKE_WORD_MAX_LENGTH_MS 3000
 
 typedef int32_t pcm_input_t[AUDIO_PCM_BUFFER_COUNT][AUDIO_PCM_SAMPLE_COUNT];
 

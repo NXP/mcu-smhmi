@@ -51,6 +51,7 @@ typedef struct _audio_processing_event
     event_info_t eventInfo;
     /* Pointer to a struct of data that needs to be forwarded. */
     void *data;
+    void *data_marks;
     /* Size of the struct that needs to be forwarded. */
     unsigned int size;
     /* If copy is set to 1, the framework will forward a copy of the data. */

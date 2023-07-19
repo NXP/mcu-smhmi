@@ -1,0 +1,8 @@
+<#if memory.name=="SRAM_ITC_cm4">
+ 		*custom*.o(.text*)
+ 		*display_support.o(.text*)
+ 		*lvgl_support.o(.text*)
+ 		*fwk_*.o(.text*)
+ 		*hal_*.o(.text*)
+        *freertos_kernel*.o(.text*)
+</#if>

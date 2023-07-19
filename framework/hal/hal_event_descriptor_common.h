@@ -32,12 +32,20 @@ typedef enum _event_id
     kEventID_SetDisplayOutput,
     kEventID_GetDisplayOutputSource,
     kEventID_SetDisplayOutputSource,
+    kEventID_SetDisplayCameraPreview,
     kEventID_GetIRLedBrightness,
     kEventID_SetIRLedBrightness,
     kEventID_GetWhiteLedBrightness,
     kEventID_SetWhiteLedBrightness,
-    kEventID_GetSpeakerVolume,
+
+    kEventID_StreamerLoad,  /* Streamer will load file Metadata and will move to Pause */
+    kEventID_StreamerStop,  /* Streamer will relinquish all the resource */
+    kEventID_StreamerPlay,  /* Streamer will play current song */
+    kEventID_StreamerPause, /* Streamer will pause the current song */
+    kEventID_StreamerNext,
+    kEventID_StreamerPrevious,
     kEventID_SetSpeakerVolume,
+    kEventID_GetSpeakerVolume,
 
     kEventID_SetConnectivityType,
     kEventID_GetConnectivityType,
@@ -145,6 +153,7 @@ typedef struct _display_output_event
 {
     uint8_t displayOutput;
     uint8_t displayOutputSource;
+    uint8_t enableCameraPreview;
 } display_output_event_t;
 
 typedef struct _log_level_event

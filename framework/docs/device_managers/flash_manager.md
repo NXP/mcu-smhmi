@@ -1,19 +1,15 @@
----
-sidebar_position: 10
----
+# Flash manager
 
-# Flash Manager
-
-The Flash Manager is used to provide an abstraction for an underlying filesystem implementation.
+The Flash manager is used to provide an abstraction for an underlying filesystem implementation.
 
 Due to the unique nature of the filesystem being an abstract "virtual" device,
 only one flash device can be registered at a time.
 However,
 generally there should be no need to have more than one filesystem.
-This means the Flash Manager's API functions essentially act as wrappers which calls the `Operators` of the underlying flash HAL device. **[1]**
+It means the Flash manager's API functions essentially act as wrappers that call the `Operators` of the underlying flash HAL device.
 
-```{tip}
-**[1]** Flash access is exclusive, one request at a time.
+```{warning}
+Flash access is exclusive, one request at a time.
 ```
 
 ```{note}
@@ -36,7 +32,7 @@ int FWK_Flash_DeviceRegister(const flash_dev_t *dev);
 ```
 
 Unlike the flow for most other managers,
-this function should be called _before_ `FWK_Flash_Init`.
+this function must be called _before_ `FWK_Flash_Init`.
 
 ### FWK_Flash_Init
 
@@ -73,7 +69,7 @@ These API functions include:
 - Rename
 - Cleanup
 
-While this might limit filesystem functionality,
+While it might limit filesystem functionality,
 it also helps to keep the code readable, portable, and maintainable.
 
 ```{note}

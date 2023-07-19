@@ -24,6 +24,8 @@ int gfx_manager_init();
 int gfx_dev_register(gfx_dev_t *dev);
 int gfx_manager_deinit();
 int gfx_blit(gfx_surface_t *pSrc, gfx_surface_t *pDst, gfx_rotate_config_t *pRotate, flip_mode_t flip);
+int gfx_drawPoint(gfx_surface_t *pOverlay, int points_x, int points_y, int radius, int color);
+int gfx_drawLine(gfx_surface_t *pOverlay, int left_x, int top_y, int right_x, int bottom_y, int line_width, int color);
 int gfx_drawRect(gfx_surface_t *pOverlay, int x, int y, int w, int h, int color);
 int gfx_drawPicture(gfx_surface_t *pOverlay, int x, int y, int w, int h, int alpha, const char *pIcon);
 int gfx_drawText(gfx_surface_t *pOverlay, int x, int y, int textColor, int bgColor, int type, const char *pText);

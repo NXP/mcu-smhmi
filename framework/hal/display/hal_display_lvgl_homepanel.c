@@ -25,7 +25,6 @@
 #include "hal_display_dev.h"
 #include "app_config.h"
 #include "smart_tlhmi_event_descriptor.h"
-
 #include "display_support.h"
 #include "task.h"
 #include "pin_mux.h"
@@ -40,6 +39,13 @@
 #define DISPLAY_NAME         "LVGLHomePanel"
 #define LVGL_TASK_PRIORITY   (configMAX_PRIORITIES - 2)
 #define LVGL_TASK_STACK_SIZE 1024
+#define LVGL_TASK_NAME       "LVGL"
+
+#if FWK_SUPPORT_STATIC_ALLOCATION
+FWKDATA static StackType_t s_LVGLTaskStack[LVGL_TASK_STACK_SIZE];
+FWKDATA static StaticTask_t s_LVGLTaskTCB;
+static void *s_LVGLTaskTCBReference = (void *)&s_LVGLTaskTCB;
+#endif
 
 /* LCD input frame buffer is RGB565, converted by PXP. */
 AT_NONCACHEABLE_SECTION_ALIGN(
@@ -48,6 +54,7 @@ AT_NONCACHEABLE_SECTION_ALIGN(
     FRAME_BUFFER_ALIGN);
 volatile bool g_LvglInitialized = false;
 lv_ui guider_ui;
+bool s_EnableCameraPreview = false;
 
 extern preview_mode_t g_PreviewMode;
 
@@ -71,13 +78,18 @@ static void _LvglTask(void *param)
     g_LvglInitialized = true;
 
     setup_imgs((unsigned char *)APP_LVGL_IMGS_BASE);
+#if AQT_TEST
+#else
     setup_ui(&guider_ui);
+#endif /* AQT_TEST */
     events_init(&guider_ui);
     custom_init(&guider_ui);
     while (1)
     {
+        LVGL_LOCK();
         lv_task_handler();
-        vTaskDelay(pdMS_TO_TICKS(5));
+        LVGL_UNLOCK();
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -89,11 +101,17 @@ hal_display_status_t HAL_DisplayDev_LVGLHomePanel_Init(
 
     memset(s_LcdBuffer, 0x0, sizeof(s_LcdBuffer));
 
+    dev->cap.callback = callback;
+
     dev->cap.frameBuffer = (void *)s_LcdBuffer[0];
 
-    BaseType_t stat = xTaskCreate(_LvglTask, "LVGL", LVGL_TASK_STACK_SIZE, NULL, LVGL_TASK_PRIORITY, NULL);
+#if FWK_SUPPORT_STATIC_ALLOCATION
+    if (xTaskCreateStatic(_LvglTask, LVGL_TASK_NAME, LVGL_TASK_STACK_SIZE, NULL, LVGL_TASK_PRIORITY, s_LVGLTaskStack,
+                          s_LVGLTaskTCBReference) == NULL)
+#else
+    if (xTaskCreate(_LvglTask, LVGL_TASK_NAME, LVGL_TASK_STACK_SIZE, NULL, LVGL_TASK_PRIORITY, NULL) != pdPASS)
+#endif
 
-    if (pdPASS != stat)
     {
         LOGE("Failed to create LVGL task");
         while (1)
@@ -132,25 +150,70 @@ hal_display_status_t HAL_DisplayDev_LVGLHomePanel_Blit(const display_dev_t *dev,
     static int camerPreviewLayerOn = 0;
 
     // enable camera preview layer in screen with camera preview.
-//    if (lv_scr_act() == guider_ui.screen_home && g_PreviewMode == PREVIEW_MODE_CAMERA)
-//    {
-//        if (camerPreviewLayerOn == 0)
-//        {
-//            lv_enable_camera_preview(lcdFrameAddr, true);
-//            camerPreviewLayerOn = 1;
-//        }
-//    }
-//    else
-//    {
-//        // disable camera preview layer in screen without camera preview.
-//        if (camerPreviewLayerOn == 1)
-//        {
-//            camerPreviewLayerOn = 0;
-//            lv_enable_camera_preview(lcdFrameAddr, false);
-//        }
-//    }
+    if (s_EnableCameraPreview && (g_PreviewMode == PREVIEW_MODE_CAMERA))
+    {
+        if (camerPreviewLayerOn == 0)
+        {
+            lv_enable_camera_preview(lcdFrameAddr, true);
+            camerPreviewLayerOn = 1;
+        }
+    }
+    else
+    {
+        // disable camera preview layer in screen without camera preview.
+        if (camerPreviewLayerOn == 1)
+        {
+            camerPreviewLayerOn = 0;
+            lv_enable_camera_preview(lcdFrameAddr, false);
+        }
+    }
+
+    if (camerPreviewLayerOn)
+    {
+        ret = kStatus_HAL_DisplayRequestFrame;
+    }
 
     LOGI("--HAL_DisplayDev_LVGLHomePanel_Blit");
+    return ret;
+}
+
+hal_display_status_t HAL_DisplayDev_LVGLHomePanel_InputNotify(display_dev_t *dev, void *data)
+{
+    hal_display_status_t ret      = kStatus_HAL_DisplaySuccess;
+    event_common_t *pEventCommont = (event_common_t *)data;
+
+    if (pEventCommont->eventBase.eventId == kEventID_SetKeyboardOverlay)
+    {
+        event_smart_tlhmi_t *pEventHomepanel = (event_smart_tlhmi_t *)data;
+        lv_enable_keyboard_layout((uint8_t)pEventHomepanel->data);
+    }
+    if (pEventCommont->eventBase.eventId == kEventID_SetDisplayCameraPreview)
+    {
+        if (s_EnableCameraPreview != pEventCommont->displayOutput.enableCameraPreview)
+        {
+            s_EnableCameraPreview = pEventCommont->displayOutput.enableCameraPreview;
+            LOGD("camera previewing %d", s_EnableCameraPreview);
+
+            // request a frame for disable event to trigger the blit()
+            // to disable the camera preview layer
+            dev->cap.callback(dev, kDisplayEvent_RequestFrame, NULL, 0);
+        }
+    }
+    else if (pEventCommont->eventBase.eventId == kEventID_SetDisplayOutputSource)
+    {
+        LOGD("set display output source to %d", pEventCommont->displayOutput.displayOutputSource);
+        if (pEventCommont->displayOutput.displayOutputSource == DISPLAY_SOURCE_RGB)
+        {
+            dev->cap.srcFormat = kPixelFormat_YUV1P444_RGB;
+        }
+        else if (pEventCommont->displayOutput.displayOutputSource == DISPLAY_SOURCE_IR)
+        {
+            dev->cap.srcFormat = kPixelFormat_UYVY1P422_Gray;
+        }
+
+        dev->cap.callback(dev, kDisplayEvent_RequestFrame, NULL, 0);
+    }
+
     return ret;
 }
 
@@ -159,7 +222,7 @@ const static display_dev_operator_t s_DisplayDev_LVGLHomePanelOps = {
     .deinit      = HAL_DisplayDev_LVGLHomePanel_Deinit,
     .start       = HAL_DisplayDev_LVGLHomePanel_Start,
     .blit        = HAL_DisplayDev_LVGLHomePanel_Blit,
-    .inputNotify = NULL,
+    .inputNotify = HAL_DisplayDev_LVGLHomePanel_InputNotify,
 };
 
 static display_dev_t s_DisplayDev_LVGLHomePanel = {
@@ -189,7 +252,8 @@ int HAL_DisplayDev_LVGLHomePanel_Register()
 
     ret = FWK_DisplayManager_DeviceRegister(&s_DisplayDev_LVGLHomePanel);
 
-//nn for test    FWK_LpmManager_RegisterRequestHandler(&s_LpmReq);
+    // nn for test    FWK_LpmManager_RegisterRequestHandler(&s_LpmReq);
+    (void)s_LpmReq;
     LOGD("--HAL_DisplayDev_LVGLHomePanel_Register");
     return ret;
 }

@@ -79,7 +79,7 @@ static sln_flash_status_t _lfs_cleanupHandler(const flash_dev_t *dev, unsigned i
         LOGE("Failed to do the cleanup operation, error %d", status);
         ret = kStatus_HAL_FlashFail;
     }
-    return status;
+    return ret;
 }
 
 static sln_flash_status_t _lfs_formatHandler(const flash_dev_t *dev)

@@ -24,6 +24,13 @@
 
 #define PXP_DEV PXP
 
+#ifndef GFX_PXP_MAX
+#define GFX_PXP_MAX(a, b) (((a) < (b)) ? (b) : (a))
+#endif
+#ifndef GFX_PXP_MIN
+#define GFX_PXP_MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+
 /*
  * Notice: enable the lock will introduce 1 ms time cost for each PXP operation
  */
@@ -881,6 +888,126 @@ int HAL_GfxDev_Pxp_Blit(
     return error;
 }
 
+int HAL_GfxDev_Pxp_DrawLine(const gfx_dev_t *dev,
+                            gfx_surface_t *pOverlay,
+                            int left_x,
+                            int top_y,
+                            int right_x,
+                            int bottom_y,
+                            int line_width,
+                            int color)
+{
+    if ((dev == NULL) || (pOverlay == NULL))
+    {
+        return -1;
+    }
+
+    if (pOverlay->format != kPixelFormat_RGB565)
+    {
+        LOGE("PIXEL_RGB565 is currently the only supported overlay surface");
+        return -1;
+    }
+
+    left_x                  = GFX_PXP_MAX(0, left_x);
+    top_y                   = GFX_PXP_MAX(0, top_y);
+    right_x                 = GFX_PXP_MIN(pOverlay->width - 1, right_x);
+    bottom_y                = GFX_PXP_MIN(pOverlay->height - 1, bottom_y);
+    uint16_t *pCanvasBuffer = (uint16_t *)pOverlay->buf;
+    int height              = pOverlay->height;
+    int width               = pOverlay->width;
+
+    if (left_x < right_x)
+    {
+        for (int x = left_x; x < right_x; x++)
+        {
+            int y = (int)((float)((bottom_y - top_y) * x + top_y * right_x - bottom_y * left_x) / (right_x - left_x) +
+                          0.5f);
+
+            for (int ii = GFX_PXP_MAX(0, y - line_width); ii <= GFX_PXP_MIN(y + line_width, height - 1); ii++)
+            {
+                *(pCanvasBuffer + ii * width + x) = color;
+            }
+        }
+    }
+    else
+    {
+        for (int x = right_x; x < left_x; x++)
+        {
+            int y = (int)((float)((bottom_y - top_y) * x + top_y * right_x - bottom_y * left_x) / (right_x - left_x) +
+                          0.5f);
+
+            for (int ii = GFX_PXP_MAX(0, y - line_width); ii <= GFX_PXP_MIN(y + line_width, height - 1); ii++)
+            {
+                *(pCanvasBuffer + ii * width + x) = color;
+            }
+        }
+    }
+
+    if (top_y < bottom_y)
+    {
+        for (int y = top_y; y < bottom_y; y++)
+        {
+            int x = (int)((float)((right_x - left_x) * y + bottom_y * left_x - top_y * right_x) / (bottom_y - top_y) +
+                          0.5f);
+
+            for (int ii = GFX_PXP_MAX(0, x - line_width); ii <= GFX_PXP_MIN(x + line_width, width - 1); ii++)
+            {
+                *(pCanvasBuffer + y * width + ii) = color;
+            }
+        }
+    }
+    else
+    {
+        for (int y = bottom_y; y < top_y; y++)
+        {
+            int x = (int)((float)((right_x - left_x) * y + bottom_y * left_x - top_y * right_x) / (bottom_y - top_y) +
+                          0.5f);
+
+            for (int ii = GFX_PXP_MAX(0, x - line_width); ii <= GFX_PXP_MIN(x + line_width, width - 1); ii++)
+            {
+                *(pCanvasBuffer + y * width + ii) = color;
+            }
+        }
+    }
+}
+
+int HAL_GfxDev_Pxp_DrawPoint(
+    const gfx_dev_t *dev, gfx_surface_t *pOverlay, int points_x, int points_y, int radius, int color)
+{
+    int error = 0;
+
+    if ((dev == NULL) || (pOverlay == NULL))
+    {
+        return -1;
+    }
+
+    if (pOverlay->format != kPixelFormat_RGB565)
+    {
+        LOGE("PIXEL_RGB565 is currently the only supported overlay surface");
+        return -1;
+    }
+
+    uint16_t *pCanvasBuffer = (uint16_t *)pOverlay->buf;
+
+    points_x = GFX_PXP_MAX(radius, points_x);
+    points_y = GFX_PXP_MAX(radius, points_y);
+    points_x = GFX_PXP_MIN(pOverlay->width - 1 - radius, points_x);
+    points_y = GFX_PXP_MIN(pOverlay->height - 1 - radius, points_y);
+
+    for (int x = points_x - radius; x <= points_x + radius; x++)
+    {
+        for (int y = points_y - radius; y <= points_y + radius; y++)
+        {
+            if ((x - points_x) * (x - points_x) + (y - points_y) * (y - points_y) <= radius * radius)
+            {
+                *(pCanvasBuffer + y * pOverlay->width + x) = color;
+            }
+        }
+    }
+
+    return error;
+}
+
 int HAL_GfxDev_Pxp_DrawRect(
     const gfx_dev_t *dev, gfx_surface_t *pOverlay, const int x, const int y, const int w, const int h, const int color)
 {
@@ -978,7 +1105,7 @@ int HAL_GfxDev_Pxp_DrawPicture(const gfx_dev_t *dev,
     }
     else /* in most cases, we can do optimization by 2 pixels per operation */
     {
-        uint16_t *pSrc;
+        const uint16_t *pSrc;
         uint16_t *pDst;
         for (int i = y; i < h_end; i++)
         {
@@ -1248,6 +1375,8 @@ const static gfx_dev_operator_t s_GfxDevPxpOps = {
     .blit        = HAL_GfxDev_Pxp_Blit,
     .drawRect    = HAL_GfxDev_Pxp_DrawRect,
     .drawPicture = HAL_GfxDev_Pxp_DrawPicture,
+    .drawLine    = HAL_GfxDev_Pxp_DrawLine,
+    .drawPoint   = HAL_GfxDev_Pxp_DrawPoint,
     .compose     = HAL_GfxDev_Pxp_Compose,
 };
 

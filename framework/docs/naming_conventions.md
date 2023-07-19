@@ -1,27 +1,24 @@
----
----
-
 # Naming Conventions
 
 The framework code adheres to a set of naming conventions
-for the purpose of making the code more easily readable and searchable using modern code completion tools.
+for making the code easily readable and searchable using modern code completion tools.
 
 ```{note}
-The naming conventions described below apply *only* to framework-related code which is primarily located in the`framework` folder, and `source`  folder of the application.
+The naming conventions described below apply *only* to framework-related code that is primarily located in the`framework` folder, and `source`  folder of the application.
 ```
 
 ## Functions
 
 Functions names follow the format of `{APP/FWK/HAL}\_{DevType}\_{DevName}_{Action}`.
 
-**Ex.**
+**For example:**
 
 ```c title="HAL/common/hal_input_push_buttons.c"
 hal_input_status_t HAL_InputDev_PushButtons_Start(const input_dev_t *dev);
 ```
 
 To increase searchability using code completion tools
-functions for each framework component have their own prefix denoting which component they relate to.
+functions for each framework component have their own prefix denoting the component they relate to:
 
 - `APP` - app-specific function. Usually device registration or event handler-related.
 - `FWK` - framework-specific function. Usually framework API function.
@@ -34,7 +31,7 @@ an underscore `_` may be placed in front of a function name to indicate that the
 Static functions oftentimes exclude all but the underscore and the `Action` as the component, devType, and devName are implicit.
 ```
 
-**Ex.**
+**For example:**
 
 ```c title="Static Function Example"
 static shell_status_t _VersionCommand(shell_handle_t shellContextHandle, int32_t argc, char **argv);
@@ -50,18 +47,18 @@ Following one of the above prefixes is the device type of the device defining th
 - `OutputDev`
 - `CameraDev`
 - `DisplayDev`
-- etc.
+- and so forth.
 
-Following the device type is the name of the device.
-This name should match the name of the device specified in the file name.
+As the device type is the name of the device,
+the name must match the name of the device specified in the filename.
 
-**Ex.**
+**For example:**
 
 ```c title="HAL/common/hal_input_push_buttons.c"
 hal_input_status_t HAL_InputDev_PushButtons_Start(const input_dev_t *dev);
 ```
 
-Finally, following the name of the device is the "action" which is being performed on/by the device. This could be anything including `Start`, `Stop`, `Register`, etc.
+The name of the device ends with the "action" performed on/by the device. It could be anything including `Start`, `Stop`, `Register`, etc.
 
 Below are several examples of different function names.
 
@@ -100,7 +97,7 @@ hal_input_status_t HAL_InputDev_PushButtons_InputNotify(const input_dev_t *dev, 
 
 ## Variables
 
-Local and global variables both use `camelCase`.
+Local and global variables use `camelCase`.
 
 ```c title="Local Variable Example" {5,6}
 static hal_output_status_t HAL_OutputDev_RgbLed_InferComplete(const output_dev_t *dev,
@@ -113,7 +110,7 @@ static hal_output_status_t HAL_OutputDev_RgbLed_InferComplete(const output_dev_t
 
 Static variables are prefixed with `s_PascalCase`
 
-**Ex.**
+**For example:**
 
 ```c title="Static Variable Example"
 static event_common_t s_CommonEvent;
@@ -130,7 +127,7 @@ static shell_handle_t s_ShellHandle;
 
 Type definitions are written in `snake_case` and end in `_t`.
 
-**Ex.**
+**For example:**
 
 ```c title="Typedef Example"
 typedef struct
@@ -144,7 +141,7 @@ typedef struct
 
 Enumerations are written in the the form `kEventType_State`.
 
-**Ex.**
+**For example:**
 
 ```c title="Enumeration Example"
 typedef enum _rgb_led_color
@@ -161,9 +158,9 @@ typedef enum _rgb_led_color
 } rgbLedColor_t;
 ```
 
-Enumerations for a status specifically are be written in the form `kStatus_{Component}_{State}`.
+Enumerations for a status specifically must be written in the form `kStatus_{Component}_{State}`.
 
-**Ex.**
+**For example:**
 
 ```c Enumeration title="Status Example"
 /*! @brief Error codes for input hal devices */
@@ -174,11 +171,11 @@ typedef enum _hal_input_status
 } hal_input_status_t;
 ```
 
-## Macros & Defines
+## Macros and Defines
 
 Defines are written in all caps.
 
-**Ex.**
+**For example:**
 
 ```c title="HAL/common/hal_input_push_buttons.c"
 #define INPUT_DEV_PB_WAKE_GPIO        BOARD_USER_BUTTON_GPIO
