@@ -646,17 +646,12 @@ hal_audio_processing_status_t audio_processing_afe_run(const audio_processing_de
 #endif /* !AMP_LOOPBACK_DISABLED */
 
         /* Run mic streams through AFE */
-#ifdef ENABLE_DSMT_ASR
         afeStatus = SLN_AFE_Process_Audio(afeMicIn, afeAmpIn, &afeCleanOut);
         if (afeStatus != kAfeSuccess)
         {
             LOGE("[AFE] SLN_AFE_Process_Audio failed %d", afeStatus);
             error = kStatus_HAL_AudioProcessingError;
         }
-#else
-        /* VIT does not support AFE yet. */
-        afeCleanOut = afeMicIn;
-#endif /* ENABLE_DSMT_ASR */
 
 #if ENABLE_OUTPUT_DEV_AudioDump == 1
         _forwardDataToAudioDump(dev,

@@ -21,6 +21,7 @@
 #include "bootloader.h"
 #include "sln_rgb_led_driver.h"
 #include "sln_push_buttons_driver.h"
+#include "sln_flash_fs_ops.h"
 
 /* Mbedtls includes */
 #ifdef MBEDTLS_CONFIG_FILE
@@ -56,6 +57,12 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
+#define FS_BOOTLOADER_DIR "Bootloader"
+
+#define FS_BOOTLOADER_CONFIG_PATH \
+    FS_BOOTLOADER_DIR             \
+    "/"                           \
+    "CurrentApp"
 
 #define SET_THUMB_ADDRESS(x) (x | 0x1)
 
@@ -73,6 +80,12 @@
 
 // typedef for function used to do the jump to the application
 typedef void (*app_entry_t)(void);
+
+typedef struct _bootloader_config
+{
+    fica_img_type_t currentApp;
+    uint8_t reserved[16];
+} __attribute__((packed)) bootloader_config_t;
 
 /*******************************************************************************
  * Variables
@@ -153,6 +166,60 @@ static void JumpToAddr(uint32_t appaddr)
     appEntry();
 }
 
+static void createBootloaderEntryFS()
+{
+    sln_flash_fs_status_t status = sln_flash_fs_ops_mkdir(FS_BOOTLOADER_DIR);
+
+    if ((status == SLN_FLASH_FS_OK) || (status == SLN_FLASH_FS_FILEEXIST))
+    {
+        status = sln_flash_fs_ops_mkfile(FS_BOOTLOADER_CONFIG_PATH, false);
+        if (status == SLN_FLASH_FS_OK)
+        {
+            bootloader_config_t bootloaderConfig = {0};
+            bootloaderConfig.currentApp          = FICA_IMG_TYPE_APP_A;
+            status = sln_flash_fs_ops_save(FS_BOOTLOADER_CONFIG_PATH, (uint8_t *)&bootloaderConfig,
+                                           sizeof(bootloader_config_t));
+        }
+    }
+
+    if ((status != SLN_FLASH_FS_OK) && (status != SLN_FLASH_FS_FILEEXIST))
+    {
+        configPRINTF(("[ERROR] Failed to create bootloader file"));
+        vTaskDelay(portTICK_PERIOD_MS * 100);
+        while (1)
+            ;
+    }
+}
+
+static void saveBootloaderDataFS(const bootloader_config_t *bootloaderConfig)
+{
+    sln_flash_fs_status_t status =
+        sln_flash_fs_ops_save(FS_BOOTLOADER_CONFIG_PATH, (uint8_t *)bootloaderConfig, sizeof(bootloader_config_t));
+
+    if (status != SLN_FLASH_FS_OK)
+    {
+        configPRINTF(("[ERROR] Failed to save bootloader file"));
+        vTaskDelay(portTICK_PERIOD_MS * 100);
+        while (1)
+            ;
+    }
+}
+
+static void getBootloaderDataFS(bootloader_config_t *bootloaderConfig)
+{
+    uint32_t len = sizeof(bootloader_config_t);
+    sln_flash_fs_status_t status =
+        sln_flash_fs_ops_read(FS_BOOTLOADER_CONFIG_PATH, (uint8_t *)bootloaderConfig, 0, &len);
+
+    if (status != SLN_FLASH_FS_OK)
+    {
+        configPRINTF(("[ERROR] Failed to get bootloader file"));
+        vTaskDelay(portTICK_PERIOD_MS * 100);
+        while (1)
+            ;
+    }
+}
+
 /**
  * @brief Jump to Main Application task
  *
@@ -179,10 +246,33 @@ static void jumpToMainAppTask(void)
     if (SLN_FLASH_NO_ERROR == status)
     {
         int32_t buttonImgType = FICA_IMG_TYPE_NONE;
+        bootloader_config_t bootloaderConfig = {0};
+        /* this will not do anything if the file exists */
+        createBootloaderEntryFS();
+        /* Check if we saved it in a fs file */
+        getBootloaderDataFS(&bootloaderConfig);
 
         SLN_CheckForAppBoot(&buttonImgType);
+
+        configPRINTF(("BootloaderFS boot imgType %d, FICA current imgType %d, Button imgType %d ",
+                      bootloaderConfig.currentApp, imgtype, buttonImgType));
+        if (buttonImgType == FICA_IMG_TYPE_NONE)
+        {
+            if (bootloaderConfig.currentApp == FICA_IMG_TYPE_APP_C)
+            {
+                buttonImgType = FICA_IMG_TYPE_APP_C;
+            }
+        }
+        else if (buttonImgType != bootloaderConfig.currentApp)
+        {
+            bootloaderConfig.currentApp = buttonImgType;
+            saveBootloaderDataFS(&bootloaderConfig);
+        }
+
         if ((buttonImgType == FICA_IMG_TYPE_APP_A) || (buttonImgType == FICA_IMG_TYPE_APP_B))
         {
+            /* For bank A or B we need to add the entry also in the FICA table */
+
             if (buttonImgType != imgtype)
             {
                 status = FICA_SetCurAppStartType(buttonImgType);
@@ -368,6 +458,8 @@ void ReRunBootloader()
         // Safer to just jump back into our vector table
         appaddr = SCB->VTOR;
     }
+
+    appaddr += FLEXSPI_AMBA_BASE;
 
     // Run the Bootloader
     JumpToAddr(appaddr);

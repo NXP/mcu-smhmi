@@ -289,6 +289,42 @@ static hal_output_status_t HAL_OutputDev_IrWhiteLeds_InputNotify(const output_de
         case kEventID_GetIRLedBrightness:
         {
             ir_led_event_t irLedBrightness;
+            irLedBrightness.brightness = s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value;
+            // LOGD("IR LED Brightness is currently set to: %d", irLedBrightness.brightness);
+            if (eventBase.respond != NULL)
+            {
+                _HAL_OutputDev_IrWhiteLeds_Response(eventBase, &irLedBrightness, eventResponse, true);
+            }
+        }
+        break;
+
+        case kEventID_SetIRLedBrightness:
+        {
+            event_common_t event = *(event_common_t *)data;
+            error                = set_led_brightness(kLEDType_Ir, event.irLed.brightness);
+            if (!error)
+            {
+                // LOGD("IR LED Brightness is currently set to: %d", event.irLed.brightness);
+                s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value = event.irLed.brightness;
+                _HAL_OutputDev_IrWhiteLeds_Response(eventBase, &event.irLed.brightness, eventResponse, true);
+            }
+        }
+        break;
+
+        default:
+            return error;
+            break;
+    }
+
+#if 0
+    event_base_t eventBase       = *(event_base_t *)data;
+    event_status_t eventResponse = kEventStatus_Ok;
+
+    switch (eventBase.eventId)
+    {
+        case kEventID_GetIRLedBrightness:
+        {
+            ir_led_event_t irLedBrightness;
             irLedBrightness.brightness = HAL_OutputDev_SmartLockConfig_GetIrPwm();
             LOGD("IR LED Brightness is currently set to: %d", irLedBrightness.brightness);
             if (eventBase.respond != NULL)
@@ -404,6 +440,7 @@ static hal_output_status_t HAL_OutputDev_IrWhiteLeds_InputNotify(const output_de
             return error;
             break;
     }
+#endif
 
     return error;
 }
@@ -419,10 +456,12 @@ static hal_output_status_t HAL_OutputDev_IrWhiteLeds_Start(const output_dev_t *d
     }
 
     /* TODO: Get configs by name using configs stored via json */
+#if 0
     s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value = HAL_OutputDev_SmartLockConfig_GetWhitePwm();
     set_led_brightness(kLEDType_White, s_OutputDev_IrWhiteLeds.configs[kLEDType_White].value);
+#endif
 
-    s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value = HAL_OutputDev_SmartLockConfig_GetIrPwm();
+    s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value = 60; // HAL_OutputDev_SmartLockConfig_GetIrPwm();
     set_led_brightness(kLEDType_Ir, s_OutputDev_IrWhiteLeds.configs[kLEDType_Ir].value);
 
     return error;
@@ -436,7 +475,7 @@ hal_output_status_t HAL_OutputDev_IrWhiteLeds_Init(output_dev_t *dev, output_dev
 
     LOGD("HAL_OutputDev_IrWhiteLeds_Init");
     _init_led_pwm(kLEDType_Ir);
-    _init_led_pwm(kLEDType_White);
+    //_init_led_pwm(kLEDType_White);
     return error;
 }
 

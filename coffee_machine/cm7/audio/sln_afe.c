@@ -39,9 +39,7 @@
 #define VSL_NUM_SPK    1
 #define VSL_SAMPLERATE 16000
 
-/* Amount of memory from VSL's memory pool's end which is used as scratch memory. */
-#define SCRATCH_MEM_SIZE_WW_LEN_1500 (1024 * 4)
-#define SCRATCH_MEM_SIZE_WW_LEN_3000 (1024 * 8)
+#define RDSP_ENABLE_VAD 0
 
 typedef enum _reserved_indices
 {
@@ -85,7 +83,6 @@ sln_afe_status_t SLN_AFE_Init(sln_afe_config_t *afeConfig)
     afe_mem_pool_t *afeMemPool               = NULL;
     RETUNE_VOICESEEKERLIGHT_plugin_t *vsl    = NULL;
     rdsp_voiceseekerlight_config_t vslConfig = {0};
-    uint32_t scratchMemSize                  = 0;
 
     float **micBuffsAddr = NULL;
     float *micBuffs      = NULL;
@@ -142,7 +139,7 @@ sln_afe_status_t SLN_AFE_Init(sln_afe_config_t *afeConfig)
 
     if (status == kAfeSuccess)
     {
-        vslConfig.mic_xyz_mm = afeConfig->mallocFunc(sizeof(rdsp_coordinate_xyz_t) * afeConfig->numberOfMics);
+        vslConfig.mic_xyz_mm = afeConfig->mallocFunc(sizeof(rdsp_xyz_t) * afeConfig->numberOfMics);
         if (vslConfig.mic_xyz_mm == NULL)
         {
             status = kAfeOutOfMemory;
@@ -176,38 +173,14 @@ sln_afe_status_t SLN_AFE_Init(sln_afe_config_t *afeConfig)
 
     if (status == kAfeSuccess)
     {
-        if (afeConfig->wakeWordMaxLength <= 1500)
-        {
-            scratchMemSize = SCRATCH_MEM_SIZE_WW_LEN_1500;
-        }
-        else if (afeConfig->wakeWordMaxLength <= 3000)
-        {
-            scratchMemSize = SCRATCH_MEM_SIZE_WW_LEN_3000;
-        }
-        else
-        {
-            status = kAfeFail;
-        }
-    }
-
-    if (status == kAfeSuccess)
-    {
-        memset(vsl, 0, sizeof(RETUNE_VOICESEEKERLIGHT_plugin_t));
-
-        vsl->mem.pPrivateDataBase    = afeConfig->afeMemBlock;
-        vsl->mem.pPrivateDataNext    = afeConfig->afeMemBlock;
-        vsl->mem.FreePrivateDataSize = afeConfig->afeMemBlockSize - scratchMemSize;
-        vsl->mem.pScratchDataBase    = &afeConfig->afeMemBlock[afeConfig->afeMemBlockSize - scratchMemSize];
-        vsl->mem.pScratchDataNext    = &afeConfig->afeMemBlock[afeConfig->afeMemBlockSize - scratchMemSize];
-        vsl->mem.FreeScratchDataSize = scratchMemSize;
-
         vslConfig.num_mics              = afeConfig->numberOfMics;
         vslConfig.num_spks              = VSL_NUM_SPK;
-        vslConfig.samplerate            = VSL_SAMPLERATE;
         vslConfig.framesize_out         = VSL_FRAME_SIZE_OUT;
         vslConfig.create_aec            = afeConfig->aecEnabled;
+        vslConfig.create_doa            = afeConfig->doaEnabled;
         vslConfig.buffer_length_sec     = ((float)afeConfig->wakeWordMaxLength) / 1000;
         vslConfig.aec_filter_length_ms  = afeConfig->aecFilterLength;
+        vslConfig.device_id = Device_IMXRT1170_CM7;
 
         for (uint8_t i = 0; i < afeConfig->numberOfMics; i++)
         {
@@ -215,6 +188,22 @@ sln_afe_status_t SLN_AFE_Init(sln_afe_config_t *afeConfig)
             vslConfig.mic_xyz_mm[i][1] = afeConfig->micsPosition[i][1];
             vslConfig.mic_xyz_mm[i][2] = afeConfig->micsPosition[i][2];
         }
+
+        /*
+         * Query how much heap memory is required for the configuration
+         */
+        uint32_t heap_req_bytes = VoiceSeekerLight_GetRequiredHeapMemoryBytes(vsl, &vslConfig);
+    #if RDSP_ENABLE_VOICESPOT
+        /* 30 kB for VoiceSpot instance */
+        heap_req_bytes += 30000;
+    #endif
+        assert(afeConfig->afeMemBlockSize >= heap_req_bytes);
+
+        memset(vsl, 0, sizeof(RETUNE_VOICESEEKERLIGHT_plugin_t));
+
+        vsl->mem.pPrivateDataBase    = afeConfig->afeMemBlock;
+        vsl->mem.pPrivateDataNext    = afeConfig->afeMemBlock;
+        vsl->mem.FreePrivateDataSize = afeConfig->afeMemBlockSize;
 
         vslStatus = VoiceSeekerLight_Create(vsl, &vslConfig);
         if (vslStatus != OK)
@@ -240,6 +229,29 @@ sln_afe_status_t SLN_AFE_Init(sln_afe_config_t *afeConfig)
 
         s_afeMemPool = afeMemPool;
 
+        /*
+         * Retrieve VoiceSeekerLight version and configuration
+         */
+        rdsp_voiceseekerlight_ver_struct_t vsl_version;
+        VoiceSeekerLight_GetLibVersion(vsl, &vsl_version.major, &vsl_version.minor, &vsl_version.patch);
+        VoiceSeekerLight_GetConfig(vsl, &vslConfig);
+        rdsp_voiceseekerlight_constants_t vsl_constants;
+        VoiceSeekerLight_GetConstants(&vsl_constants);
+
+#if RDSP_ENABLE_VAD==1
+    /*
+     * Create VAD
+     */
+    vslStatus = VoiceSeekerLight_Vad_Create(vsl);
+    if (vslStatus != OK) {
+        return -1;
+    }
+
+    /*
+     * Initialize VAD
+     */
+    VoiceSeekerLight_Vad_Init(vsl);
+#endif
     }
     else
     {

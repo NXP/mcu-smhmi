@@ -19,7 +19,7 @@
 					<folderInfo id="com.crt.advproject.config.exe.debug.1845018860." name="/" resourcePath="">
 						<toolChain id="com.crt.advproject.toolchain.exe.debug.332645835" name="NXP MCU Tools" superClass="com.crt.advproject.toolchain.exe.debug">
 							<targetPlatform binaryParser="org.eclipse.cdt.core.ELF;org.eclipse.cdt.core.GNU_ELF" id="com.crt.advproject.platform.exe.debug.680065524" name="ARM-based MCU (Debug)" superClass="com.crt.advproject.platform.exe.debug"/>
-							<builder buildPath="${workspace_loc:/evkmimxrt1170_dev_composite_cdc_msc_disk_bm_cm7}/Debug" enableCleanBuild="true" id="com.crt.advproject.builder.exe.debug.68785190" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" superClass="com.crt.advproject.builder.exe.debug"/>
+							<builder buildPath="${workspace_loc:/bootloader}/Debug" enableCleanBuild="true" id="com.crt.advproject.builder.exe.debug.68785190" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" superClass="com.crt.advproject.builder.exe.debug"/>
 							<tool id="com.crt.advproject.cpp.exe.debug.1841447866" name="MCU C++ Compiler" superClass="com.crt.advproject.cpp.exe.debug">
 								<option id="com.crt.advproject.cpp.hdrlib.2146776596" name="Library headers" superClass="com.crt.advproject.cpp.hdrlib" useByScannerDiscovery="false"/>
 								<option id="com.crt.advproject.cpp.fpu.1605756024" name="Floating point" superClass="com.crt.advproject.cpp.fpu" useByScannerDiscovery="true" value="com.crt.advproject.cpp.fpu.fpv5dp.hard" valueType="enumerated"/>
@@ -129,7 +129,7 @@
 									<listOptionValue builtIn="false" value="XIP_BOOT_HEADER_DCD_ENABLE=1"/>
 									<listOptionValue builtIn="false" value="XIP_BOOT_HEADER_ENABLE=1"/>
 									<listOptionValue builtIn="false" value="XIP_EXTERNAL_FLASH=1"/>
-									<listOptionValue builtIn="false" value="APP_BLD_VER=0"/>
+									<listOptionValue builtIn="false" value="APP_BLD_VER=2"/>
 									<listOptionValue builtIn="false" value="APP_MAJ_VER=1"/>
 									<listOptionValue builtIn="false" value="APP_MIN_VER=1"/>
 									<listOptionValue builtIn="false" value="BOARD_DEFINE=1"/>
@@ -189,6 +189,10 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/filesystem}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/mbedtls/include/mbedtls}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/mbedtls/include/psa}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/video}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources/fonts}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources/icons}&quot;"/>
 								</option>
 								<option id="gnu.c.compiler.option.include.files.726317045" name="Include files (-include)" superClass="gnu.c.compiler.option.include.files" useByScannerDiscovery="false"/>
 								<option id="com.crt.advproject.gcc.exe.debug.option.optimization.level.743030131" name="Optimization Level" superClass="com.crt.advproject.gcc.exe.debug.option.optimization.level" useByScannerDiscovery="true"/>
@@ -251,6 +255,9 @@
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.both.asm.option.include.paths.1810213850" name="Include paths (-I)" superClass="gnu.both.asm.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/board}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources/fonts}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources/icons}&quot;"/>
 								</option>
 								<option id="gnu.both.asm.option.warnings.nowarn.646158534" name="Suppress warnings (-W)" superClass="gnu.both.asm.option.warnings.nowarn" useByScannerDiscovery="false"/>
 								<option id="gnu.both.asm.option.version.2114934359" name="Announce version (-v)" superClass="gnu.both.asm.option.version" useByScannerDiscovery="false"/>
@@ -354,7 +361,7 @@
 								<option id="com.crt.advproject.link.gcc.lto.638535136" name="Enable Link-time optimization (-flto)" superClass="com.crt.advproject.link.gcc.lto" useByScannerDiscovery="false"/>
 								<option id="com.crt.advproject.link.gcc.lto.optmization.level.922044422" name="Link-time optimization level" superClass="com.crt.advproject.link.gcc.lto.optmization.level" useByScannerDiscovery="false"/>
 								<option id="com.crt.advproject.link.manage.1007547044" name="Manage linker script" superClass="com.crt.advproject.link.manage" useByScannerDiscovery="false" value="true" valueType="boolean"/>
-								<option id="com.crt.advproject.link.script.465206493" name="Linker script" superClass="com.crt.advproject.link.script" useByScannerDiscovery="false" value="&quot;bootloader_Debug.ld&quot;" valueType="string"/>
+								<option id="com.crt.advproject.link.script.465206493" name="Linker script" superClass="com.crt.advproject.link.script" useByScannerDiscovery="false" value="bootloader_Debug.ld" valueType="string"/>
 								<option id="com.crt.advproject.link.scriptdir.89629844" name="Script path" superClass="com.crt.advproject.link.scriptdir" useByScannerDiscovery="false" value="" valueType="string"/>
 								<option id="com.crt.advproject.link.crpenable.624388925" name="Enable automatic placement of Code Read Protection field in image" superClass="com.crt.advproject.link.crpenable" useByScannerDiscovery="false"/>
 								<option id="com.crt.advproject.link.flashconfigenable.2094878034" name="Enable automatic placement of Flash Configuration field in image" superClass="com.crt.advproject.link.flashconfigenable" useByScannerDiscovery="false" value="true" valueType="boolean"/>
@@ -405,6 +412,7 @@
 						<entry flags="LOCAL|VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="startup"/>
 						<entry flags="LOCAL|VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="usb"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="utilities"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="video"/>
 						<entry flags="LOCAL|VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="xip"/>
 					</sourceEntries>
 				</configuration>
@@ -429,7 +437,7 @@
 					<folderInfo id="com.crt.advproject.config.exe.release.1230263476." name="/" resourcePath="">
 						<toolChain id="com.crt.advproject.toolchain.exe.release.618100682" name="NXP MCU Tools" superClass="com.crt.advproject.toolchain.exe.release">
 							<targetPlatform binaryParser="org.eclipse.cdt.core.ELF;org.eclipse.cdt.core.GNU_ELF" id="com.crt.advproject.platform.exe.release.1360202413" name="ARM-based MCU (Release)" superClass="com.crt.advproject.platform.exe.release"/>
-							<builder buildPath="${workspace_loc:/evkmimxrt1170_dev_composite_cdc_msc_disk_bm_cm7}/Release" id="com.crt.advproject.builder.exe.release.1205937714" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" superClass="com.crt.advproject.builder.exe.release"/>
+							<builder buildPath="${workspace_loc:/bootloader}/Release" id="com.crt.advproject.builder.exe.release.1205937714" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" superClass="com.crt.advproject.builder.exe.release"/>
 							<tool id="com.crt.advproject.cpp.exe.release.1209466859" name="MCU C++ Compiler" superClass="com.crt.advproject.cpp.exe.release">
 								<option id="com.crt.advproject.cpp.arch.398266415" name="Architecture" superClass="com.crt.advproject.cpp.arch" useByScannerDiscovery="true" value="com.crt.advproject.cpp.target.cm7" valueType="enumerated"/>
 								<option id="com.crt.advproject.cpp.misc.dialect.1920943701" name="Language standard" superClass="com.crt.advproject.cpp.misc.dialect" useByScannerDiscovery="true"/>
@@ -548,7 +556,7 @@
 									<listOptionValue builtIn="false" value="FSL_OSA_BM_TASK_ENABLE=0"/>
 									<listOptionValue builtIn="false" value="FSL_OSA_BM_TIMER_CONFIG=0"/>
 									<listOptionValue builtIn="false" value="NDEBUG"/>
-									<listOptionValue builtIn="false" value="APP_BLD_VER=0"/>
+									<listOptionValue builtIn="false" value="APP_BLD_VER=2"/>
 									<listOptionValue builtIn="false" value="APP_MAJ_VER=1"/>
 									<listOptionValue builtIn="false" value="APP_MIN_VER=1"/>
 									<listOptionValue builtIn="false" value="BOARD_DEFINE=1"/>
@@ -601,6 +609,10 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/filesystem}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/mbedtls/include/mbedtls}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/mbedtls/include/psa}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/video}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources/fonts}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources/icons}&quot;"/>
 								</option>
 								<option id="gnu.c.compiler.option.include.files.1705091851" name="Include files (-include)" superClass="gnu.c.compiler.option.include.files" useByScannerDiscovery="false"/>
 								<option id="gnu.c.compiler.option.optimization.flags.962813534" name="Other optimization flags" superClass="gnu.c.compiler.option.optimization.flags" useByScannerDiscovery="false" value="-fno-common" valueType="string"/>
@@ -663,6 +675,9 @@
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.both.asm.option.include.paths.368795805" name="Include paths (-I)" superClass="gnu.both.asm.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/board}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources/fonts}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/source/ui_resources/icons}&quot;"/>
 								</option>
 								<option id="gnu.both.asm.option.warnings.nowarn.1214503173" name="Suppress warnings (-W)" superClass="gnu.both.asm.option.warnings.nowarn" useByScannerDiscovery="false"/>
 								<option id="gnu.both.asm.option.version.1873500435" name="Announce version (-v)" superClass="gnu.both.asm.option.version" useByScannerDiscovery="false"/>
@@ -767,7 +782,7 @@
 								<option id="com.crt.advproject.link.gcc.lto.optmization.level.1082120780" name="Link-time optimization level" superClass="com.crt.advproject.link.gcc.lto.optmization.level" useByScannerDiscovery="false"/>
 								<option id="com.crt.advproject.link.fpu.1630097082" name="Floating point" superClass="com.crt.advproject.link.fpu" useByScannerDiscovery="false" value="com.crt.advproject.link.fpu.fpv5dp.hard" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.manage.1539099027" name="Manage linker script" superClass="com.crt.advproject.link.manage" useByScannerDiscovery="false" value="true" valueType="boolean"/>
-								<option id="com.crt.advproject.link.script.1619612742" name="Linker script" superClass="com.crt.advproject.link.script" useByScannerDiscovery="false" value="&quot;bootloader_Release.ld&quot;" valueType="string"/>
+								<option id="com.crt.advproject.link.script.1619612742" name="Linker script" superClass="com.crt.advproject.link.script" useByScannerDiscovery="false" value="bootloader_Release.ld" valueType="string"/>
 								<option id="com.crt.advproject.link.scriptdir.1249634741" name="Script path" superClass="com.crt.advproject.link.scriptdir" useByScannerDiscovery="false" value="" valueType="string"/>
 								<option id="com.crt.advproject.link.crpenable.22049567" name="Enable automatic placement of Code Read Protection field in image" superClass="com.crt.advproject.link.crpenable" useByScannerDiscovery="false"/>
 								<option id="com.crt.advproject.link.flashconfigenable.2024814540" name="Enable automatic placement of Flash Configuration field in image" superClass="com.crt.advproject.link.flashconfigenable" useByScannerDiscovery="false" value="true" valueType="boolean"/>
@@ -825,6 +840,7 @@
 						<entry flags="LOCAL|VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="startup"/>
 						<entry flags="LOCAL|VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="usb"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="utilities"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="video"/>
 						<entry flags="LOCAL|VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="xip"/>
 					</sourceEntries>
 				</configuration>
@@ -838,9 +854,8 @@
 	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
 	<storageModule moduleId="com.nxp.mcuxpresso.core.datamodels">
 		<sdkName>SDK_2.x_MIMXRT1170-EVK</sdkName>
-		<sdkExample>evkmimxrt1170_dev_composite_cdc_msc_disk_bm_cm7</sdkExample>
-		<sdkVersion>2.11.1</sdkVersion>
-		<sdkComponents>middleware.usb.device_controller_ehci.MIMXRT1176;middleware.usb.phy.MIMXRT1176;platform.drivers.usdhc.MIMXRT1176;middleware.sdmmc.sd.MIMXRT1176;middleware.sdmmc.common.MIMXRT1176;middleware.sdmmc.host.usdhc.MIMXRT1176;middleware.sdmmc.host.usdhc.interrupt.MIMXRT1176;utility.debug_console_lite.MIMXRT1176;platform.utilities.assert_lite.MIMXRT1176;middleware.baremetal.MIMXRT1176;platform.drivers.clock.MIMXRT1176;platform.drivers.common.MIMXRT1176;platform.devices.MIMXRT1176_CMSIS.MIMXRT1176;platform.Include_core_cm7.MIMXRT1176;component.lpuart_adapter.MIMXRT1176;component.lists.MIMXRT1176;platform.drivers.lpuart.MIMXRT1176;platform.devices.MIMXRT1176_startup.MIMXRT1176;platform.drivers.iomuxc.MIMXRT1176;platform.drivers.igpio.MIMXRT1176;platform.drivers.xip_device.MIMXRT1176;platform.drivers.xip_board.MIMXRT1176;middleware.usb.device.controller.driver.MIMXRT1176;component.osa.MIMXRT1176;platform.drivers.pmu_1.MIMXRT1176;platform.drivers.dcdc_soc.MIMXRT1176;platform.drivers.cache_armv7_m7.MIMXRT1176;middleware.usb.common_header.MIMXRT1176;platform.drivers.anatop_ai.MIMXRT1176;middleware.usb.device.common_header.MIMXRT1176;middleware.sdmmc.osa.bm.MIMXRT1176;component.osa_bm.MIMXRT1176;platform.utilities.misc_utilities.MIMXRT1176;platform.Include_common.MIMXRT1176;platform.Include_dsp.MIMXRT1176;platform.devices.MIMXRT1176_system.MIMXRT1176;evkmimxrt1170_dev_composite_cdc_msc_disk_bm_cm7;</sdkComponents>
+		<sdkVersion>2.13.0</sdkVersion>
+		<sdkComponents>middleware.usb.device_controller_ehci.MIMXRT1176;middleware.usb.phy.MIMXRT1176;platform.drivers.usdhc.MIMXRT1176;middleware.sdmmc.sd.MIMXRT1176;middleware.sdmmc.common.MIMXRT1176;middleware.sdmmc.host.usdhc.MIMXRT1176;middleware.sdmmc.host.usdhc.interrupt.MIMXRT1176;utility.debug_console_lite.MIMXRT1176;platform.utilities.assert_lite.MIMXRT1176;middleware.baremetal.MIMXRT1176;platform.drivers.clock.MIMXRT1176;platform.drivers.common.MIMXRT1176;platform.devices.MIMXRT1176_CMSIS.MIMXRT1176;platform.Include_core_cm7.MIMXRT1176;component.lpuart_adapter.MIMXRT1176;component.lists.MIMXRT1176;platform.drivers.lpuart.MIMXRT1176;platform.devices.MIMXRT1176_startup.MIMXRT1176;platform.drivers.iomuxc.MIMXRT1176;platform.drivers.igpio.MIMXRT1176;platform.drivers.xip_device.MIMXRT1176;platform.drivers.xip_board.MIMXRT1176;middleware.usb.device.controller.driver.MIMXRT1176;component.osa.MIMXRT1176;platform.drivers.pmu_1.MIMXRT1176;platform.drivers.dcdc_soc.MIMXRT1176;platform.drivers.cache_armv7_m7.MIMXRT1176;middleware.usb.common_header.MIMXRT1176;platform.drivers.anatop_ai.MIMXRT1176;middleware.usb.device.common_header.MIMXRT1176;middleware.sdmmc.osa.bm.MIMXRT1176;component.osa_bm.MIMXRT1176;platform.utilities.misc_utilities.MIMXRT1176;platform.Include_common.MIMXRT1176;platform.Include_dsp.MIMXRT1176;platform.devices.MIMXRT1176_system.MIMXRT1176;bootloader;</sdkComponents>
 		<boardId>evkmimxrt1170</boardId>
 		<package>MIMXRT1176DVMAA</package>
 		<core>cm7</core>

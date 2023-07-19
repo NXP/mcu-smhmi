@@ -36,8 +36,15 @@ typedef enum _event_id
     kEventID_SetIRLedBrightness,
     kEventID_GetWhiteLedBrightness,
     kEventID_SetWhiteLedBrightness,
-    kEventID_GetSpeakerVolume,
+
+	kEventID_StreamerLoad, /* Streamer will load file Metadata and will move to Pause */
+	kEventID_StreamerStop, /* Streamer will relinquish all the resource */
+    kEventID_StreamerPlay, /* Streamer will play current song */
+	kEventID_StreamerPause, /* Streamer will pause the current song */
+	kEventID_StreamerNext,
+	kEventID_StreamerPrevious,
     kEventID_SetSpeakerVolume,
+    kEventID_GetSpeakerVolume,
 
     kEventID_SetConnectivityType,
     kEventID_GetConnectivityType,

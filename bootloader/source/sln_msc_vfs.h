@@ -25,6 +25,7 @@ typedef enum __transfer_state
     TRANSFER_IDLE,
     TRANSFER_START,
     TRANSFER_ACTIVE,
+    TRANSFER_PENDING,
     TRANSFER_FINAL,
     TRANSFER_ERROR
 } msc_vfs_state_t;

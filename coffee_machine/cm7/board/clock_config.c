@@ -63,14 +63,14 @@ void UpdateSemcClock(void)
     SEMC->IPCMD = 0xA55A000D;
     while ((SEMC->INTR & 0x3) == 0)
         ;
-    SEMC->INTR                                = 0x3;
-    SEMC->DCCR                                = 0x0B;
+    SEMC->INTR = 0x3;
+    SEMC->DCCR = 0x0B;
     /*
-    * Currently we are using SEMC parameter which fit both 166MHz and 200MHz, only
-    * need to change the SEMC clock root here. If customer is using their own DCD and
-    * want to switch from 166MHz to 200MHz, extra SEMC configuration might need to be
-    * adjusted here to fine tune the SDRAM performance
-    */
+     * Currently we are using SEMC parameter which fit both 166MHz and 200MHz, only
+     * need to change the SEMC clock root here. If customer is using their own DCD and
+     * want to switch from 166MHz to 200MHz, extra SEMC configuration might need to be
+     * adjusted here to fine tune the SDRAM performance
+     */
     CCM->CLOCK_ROOT[kCLOCK_Root_Semc].CONTROL = 0x602;
 }
 #endif
@@ -248,42 +248,40 @@ settings:
 
 #ifndef SKIP_POWER_ADJUSTMENT
 #if __CORTEX_M == 7
-#define BYPASS_LDO_LPSR 1
+#define BYPASS_LDO_LPSR     1
 #define SKIP_LDO_ADJUSTMENT 1
 #elif __CORTEX_M == 4
 #define SKIP_DCDC_ADJUSTMENT 1
-#define SKIP_FBB_ENABLE 1
+#define SKIP_FBB_ENABLE      1
 #endif
 #endif
 
-const clock_arm_pll_config_t armPllConfig_BOARD_BootClockRUN =
-    {
-        .postDivider = kCLOCK_PllPostDiv2,        /* Post divider, 0 - DIV by 2, 1 - DIV by 4, 2 - DIV by 8, 3 - DIV by 1 */
-        .loopDivider = 166,                       /* PLL Loop divider, Fout = Fin * ( loopDivider / ( 2 * postDivider ) ) */
-    };
+const clock_arm_pll_config_t armPllConfig_BOARD_BootClockRUN = {
+    .postDivider = kCLOCK_PllPostDiv2, /* Post divider, 0 - DIV by 2, 1 - DIV by 4, 2 - DIV by 8, 3 - DIV by 1 */
+    .loopDivider = 166,                /* PLL Loop divider, Fout = Fin * ( loopDivider / ( 2 * postDivider ) ) */
+};
 
-static clock_pll_ss_config_t sysPll2SSConfig_BOARD_BootClockRUN =
- {
-     .stop = 0x480, /*!< Spread spectrum stop value to get frequency change. */
-     .step = 0x6,   /*!< Spread spectrum step value to get frequency change step. */
- };
+static clock_pll_ss_config_t sysPll2SSConfig_BOARD_BootClockRUN = {
+    .stop = 0x480, /*!< Spread spectrum stop value to get frequency change. */
+    .step = 0x6,   /*!< Spread spectrum step value to get frequency change step. */
+};
 
-const clock_sys_pll2_config_t sysPll2Config_BOARD_BootClockRUN =
- {
-     .mfd      = 0x960,                               /* Denominator of spread spectrum */
-     .ss       = &sysPll2SSConfig_BOARD_BootClockRUN, /* Spread spectrum parameter */
-     .ssEnable = true,                                /* Enable spread spectrum or not */
- };
+const clock_sys_pll2_config_t sysPll2Config_BOARD_BootClockRUN = {
+    .mfd      = 0x960,                               /* Denominator of spread spectrum */
+    .ss       = &sysPll2SSConfig_BOARD_BootClockRUN, /* Spread spectrum parameter */
+    .ssEnable = true,                                /* Enable spread spectrum or not */
+};
 
-const clock_video_pll_config_t videoPllConfig_BOARD_BootClockRUN =
-    {
-        .loopDivider = 41,                        /* PLL Loop divider, valid range for DIV_SELECT divider value: 27 ~ 54. */
-        .postDivider = 0,                         /* Divider after PLL, should only be 1, 2, 4, 8, 16, 32 */
-        .numerator = 1,                           /* 30 bit numerator of fractional loop divider, Fout = Fin * ( loopDivider + numerator / denominator ) */
-        .denominator = 960000,                    /* 30 bit denominator of fractional loop divider, Fout = Fin * ( loopDivider + numerator / denominator ) */
-        .ss = NULL,                               /* Spread spectrum parameter */
-        .ssEnable = false,                        /* Enable spread spectrum or not */
-    };
+const clock_video_pll_config_t videoPllConfig_BOARD_BootClockRUN = {
+    .loopDivider = 41, /* PLL Loop divider, valid range for DIV_SELECT divider value: 27 ~ 54. */
+    .postDivider = 0,  /* Divider after PLL, should only be 1, 2, 4, 8, 16, 32 */
+    .numerator =
+        1, /* 30 bit numerator of fractional loop divider, Fout = Fin * ( loopDivider + numerator / denominator ) */
+    .denominator = 960000, /* 30 bit denominator of fractional loop divider, Fout = Fin * ( loopDivider + numerator /
+                              denominator ) */
+    .ss       = NULL,      /* Spread spectrum parameter */
+    .ssEnable = false,     /* Enable spread spectrum or not */
+};
 
 /*******************************************************************************
  * Code for BOARD_BootClockRUN configuration
@@ -292,11 +290,12 @@ void BOARD_BootClockRUN(void)
 {
     clock_root_config_t rootCfg = {0};
 
-    /* Set DCDC to DCM mode to improve the efficiency for light loading in run mode and transient performance with a big loading step. */
+    /* Set DCDC to DCM mode to improve the efficiency for light loading in run mode and transient performance with a big
+     * loading step. */
     DCDC_BootIntoDCM(DCDC);
 
 #if !defined(SKIP_DCDC_ADJUSTMENT) || (!SKIP_DCDC_ADJUSTMENT)
-    if((OCOTP->FUSEN[16].FUSE == 0x57AC5969U) && ((OCOTP->FUSEN[17].FUSE & 0xFFU) == 0x0BU))
+    if ((OCOTP->FUSEN[16].FUSE == 0x57AC5969U) && ((OCOTP->FUSEN[17].FUSE & 0xFFU) == 0x0BU))
     {
         DCDC_SetVDD1P0BuckModeTargetVoltage(DCDC, kDCDC_1P0BuckTarget1P15V);
     }
@@ -309,7 +308,7 @@ void BOARD_BootClockRUN(void)
 
 #if !defined(SKIP_FBB_ENABLE) || (!SKIP_FBB_ENABLE)
     /* Check if FBB need to be enabled in OverDrive(OD) mode */
-    if(((OCOTP->FUSEN[7].FUSE & 0x10U) >> 4U) != 1)
+    if (((OCOTP->FUSEN[7].FUSE & 0x10U) >> 4U) != 1)
     {
         PMU_EnableBodyBias(ANADIG_PMU, kPMU_FBB_CM7, true);
     }
@@ -328,13 +327,13 @@ void BOARD_BootClockRUN(void)
     pmu_static_lpsr_ana_ldo_config_t lpsrAnaConfig;
     pmu_static_lpsr_dig_config_t lpsrDigConfig;
 
-    if((ANADIG_LDO_SNVS->PMU_LDO_LPSR_ANA & ANADIG_LDO_SNVS_PMU_LDO_LPSR_ANA_BYPASS_MODE_EN_MASK) == 0UL)
+    if ((ANADIG_LDO_SNVS->PMU_LDO_LPSR_ANA & ANADIG_LDO_SNVS_PMU_LDO_LPSR_ANA_BYPASS_MODE_EN_MASK) == 0UL)
     {
         PMU_StaticGetLpsrAnaLdoDefaultConfig(&lpsrAnaConfig);
         PMU_StaticLpsrAnaLdoInit(ANADIG_LDO_SNVS, &lpsrAnaConfig);
     }
 
-    if((ANADIG_LDO_SNVS->PMU_LDO_LPSR_DIG & ANADIG_LDO_SNVS_PMU_LDO_LPSR_DIG_BYPASS_MODE_MASK) == 0UL)
+    if ((ANADIG_LDO_SNVS->PMU_LDO_LPSR_DIG & ANADIG_LDO_SNVS_PMU_LDO_LPSR_DIG_BYPASS_MODE_MASK) == 0UL)
     {
         PMU_StaticGetLpsrDigLdoDefaultConfig(&lpsrDigConfig);
         lpsrDigConfig.targetVoltage = kPMU_LpsrDigTargetStableVoltage1P117V;
@@ -357,10 +356,12 @@ void BOARD_BootClockRUN(void)
     CLOCK_OSC_EnableOsc48MDiv2(true);
 
     /* Config OSC 24M */
-    ANADIG_OSC->OSC_24M_CTRL |= ANADIG_OSC_OSC_24M_CTRL_OSC_EN(1) | ANADIG_OSC_OSC_24M_CTRL_BYPASS_EN(0) | ANADIG_OSC_OSC_24M_CTRL_BYPASS_CLK(0) | ANADIG_OSC_OSC_24M_CTRL_LP_EN(1) | ANADIG_OSC_OSC_24M_CTRL_OSC_24M_GATE(0);
+    ANADIG_OSC->OSC_24M_CTRL |= ANADIG_OSC_OSC_24M_CTRL_OSC_EN(1) | ANADIG_OSC_OSC_24M_CTRL_BYPASS_EN(0) |
+                                ANADIG_OSC_OSC_24M_CTRL_BYPASS_CLK(0) | ANADIG_OSC_OSC_24M_CTRL_LP_EN(1) |
+                                ANADIG_OSC_OSC_24M_CTRL_OSC_24M_GATE(0);
     /* Wait for 24M OSC to be stable. */
     while (ANADIG_OSC_OSC_24M_CTRL_OSC_24M_STABLE_MASK !=
-            (ANADIG_OSC->OSC_24M_CTRL & ANADIG_OSC_OSC_24M_CTRL_OSC_24M_STABLE_MASK))
+           (ANADIG_OSC->OSC_24M_CTRL & ANADIG_OSC_OSC_24M_CTRL_OSC_24M_STABLE_MASK))
     {
     }
 
@@ -382,8 +383,9 @@ void BOARD_BootClockRUN(void)
     CLOCK_SetRootClock(kCLOCK_Root_Bus_Lpsr, &rootCfg);
 
     /*
-    * if DCD is used, please make sure the clock source of SEMC is not changed in the following PLL/PFD configuration code.
-    */
+     * if DCD is used, please make sure the clock source of SEMC is not changed in the following PLL/PFD configuration
+     * code.
+     */
     /* Init Arm Pll. */
     CLOCK_InitArmPll(&armPllConfig_BOARD_BootClockRUN);
 
@@ -544,6 +546,7 @@ void BOARD_BootClockRUN(void)
     /* Configure FLEXSPI1 using SYS_PLL2_PFD2_CLK */
     rootCfg.mux = kCLOCK_FLEXSPI1_ClockRoot_MuxSysPll2Pfd2;
     rootCfg.div = 3;
+    CLOCK_SetRootClock(kCLOCK_Root_Flexspi1, &rootCfg);
 
     /* Configure FLEXSPI2 using OSC_RC_48M_DIV2 */
     rootCfg.mux = kCLOCK_FLEXSPI2_ClockRoot_MuxOscRc48MDiv2;
@@ -847,11 +850,12 @@ void BOARD_BootClockRUN(void)
     IOMUXC_SetSaiMClkClockSource(IOMUXC_GPR, kIOMUXC_GPR_SAI3MClk3Sel, 0);
 
     /* Set MQS configuration. */
-    IOMUXC_MQSConfig(IOMUXC_GPR,kIOMUXC_MqsPwmOverSampleRate32, 0);
+    IOMUXC_MQSConfig(IOMUXC_GPR, kIOMUXC_MqsPwmOverSampleRate32, 0);
     /* Set ENET Ref clock source. */
     IOMUXC_GPR->GPR4 &= ~IOMUXC_GPR_GPR4_ENET_REF_CLK_DIR_MASK;
     /* Set ENET_1G Tx clock source. */
-    IOMUXC_GPR->GPR5 = ((IOMUXC_GPR->GPR5 & ~IOMUXC_GPR_GPR5_ENET1G_TX_CLK_SEL_MASK) | IOMUXC_GPR_GPR5_ENET1G_RGMII_EN_MASK);
+    IOMUXC_GPR->GPR5 =
+        ((IOMUXC_GPR->GPR5 & ~IOMUXC_GPR_GPR5_ENET1G_TX_CLK_SEL_MASK) | IOMUXC_GPR_GPR5_ENET1G_RGMII_EN_MASK);
     /* Set ENET_1G Ref clock source. */
     IOMUXC_GPR->GPR5 &= ~IOMUXC_GPR_GPR5_ENET1G_REF_CLK_DIR_MASK;
     /* Set ENET_QOS Tx clock source. */

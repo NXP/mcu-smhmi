@@ -306,7 +306,7 @@ status_t BOARD_MIPIPanelTouch_I2C_Receive(
 void BOARD_RelocateVectorTableToRam(void);
 void BOARD_SD_Pin_Config(uint32_t speed, uint32_t strength);
 void BOARD_MMC_Pin_Config(uint32_t speed, uint32_t strength);
-
+void BOARD_ResetDisplayMix(void);
 #if defined(__cplusplus)
 }
 #endif /* __cplusplus */

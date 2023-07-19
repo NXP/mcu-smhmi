@@ -98,6 +98,7 @@ _|_  |___________________________________|  __|_
 #define RGB565_NXPRED   0xFD83
 #define RGB565_NXPBLUE  0x6D5B
 
+#define VOLUME_STEP_SIZE 15
 typedef enum _face_rec_indicator
 {
     FACE_REC_INDICATOR_INIT = 0,
@@ -108,40 +109,24 @@ typedef enum _face_rec_indicator
 
 enum
 {
-    VOICE_CMD_START      = 0,
-    VOICE_CMD_CANCEL     = 1,
-    VOICE_CMD_CONFIRM    = 2,
-    VOICE_CMD_ESPRESSO   = 3,
-    VOICE_CMD_AMERICANO  = 4,
-    VOICE_CMD_CAPPUCCINO = 5,
-    VOICE_CMD_CAFE_LATTE = 6,
-    VOICE_CMD_SMALL      = 7,
-    VOICE_CMD_MEDIUM     = 8,
-    VOICE_CMD_LARGE      = 9,
-    VOICE_CMD_SOFT       = 10,
-    VOICE_CMD_MILD       = 11,
-    VOICE_CMD_STRONG     = 12,
-    VOICE_CMD_DEREGISTER = 13,
-    VOICE_CMD_INVALID
+    VOICE_CMD_THERM    = 0,
+    VOICE_CMD_SECURITY = 1,
+    VOICE_CMD_AUDIO    = 2,
+    VOICE_CMD_HOME_INVALID
 };
 
 enum
 {
-    PROMPT_CONFIRM_TONE = 0,
-    PROMPT_CAN_I_HELP,
-    PROMPT_TONE_TIMEOUT,
-    PROMPT_ANOTHER_ESPRESSO,
-    PROMPT_ANOTHER_AMERICANO,
-    PROMPT_ANOTHER_CAPPUCCINO,
-    PROMPT_ANOTHER_CAFE_LATTE,
-    PROMPT_REGISTER_SELECTION,
-
-    PROMPT_INVALID
+    VOICE_CMD_MAIN       = 0,
+    VOICE_CMD_BACK       = 1,
+    VOICE_CMD_NEXT_MUSIC = 2,
+    VOICE_CMD_PRE_MUSIC  = 3,
+    VOICE_CMD_START_PLAY = 4,
+    VOICE_CMD_PAUSE_PLAY = 5,
+    VOICE_CMD_VOL_UP     = 6,
+    VOICE_CMD_VOL_DOWN   = 7,
+    VOICE_CMD_AUDIO_PLAYER_INVALID
 };
-
-static char *s_PromptName[PROMPT_INVALID + 1] = {"Confirm Tone",     "Can I Help",         "Timeout",
-                                                 "Another Expresso", "Another Americano",  "Another Cappuccino",
-                                                 "Another CafeLate", "Register Selection", "Invalid"};
 
 enum
 {
@@ -152,7 +137,6 @@ enum
     ICON_INVALID
 };
 
-static char *s_Icons[ICON_INVALID];
 static int s_GuiderColor[FACE_REC_INDICATOR_INVALID] = {RGB565_BLUE, RGB565_GREEN, RGB565_RED};
 
 static gfx_surface_t s_UiSurface;
@@ -173,18 +157,14 @@ static float s_FaceRecProgress = 0.0f;
 TimerHandle_t pFaceRecProgressTimer;
 #define FACE_REC_UPDATE_INTERVAL (60000 / 100)
 
-static TimerHandle_t s_CheckBrewingTimer = NULL;
-
-static int s_IsWaitingAnotherSelection            = 0;
-static int s_IsWaitingRegisterSelection           = 0;
 static int s_Recognized                           = 0;
 static int s_UserId                               = -1;
-static uint8_t s_UserCoffeeType                   = kCoffeeType_NumTypes;
-static uint8_t s_UserCoffeeSize                   = kCoffeeSize_NumSizes;
-static uint8_t s_UserCoffeeStrengh                = kCoffeeStrength_NumStrengths;
 static face_rec_indicator_type s_FaceRecIndicator = FACE_REC_INDICATOR_INIT;
 static bool s_EnterStandby                        = false;
 preview_mode_t g_PreviewMode                      = PREVIEW_MODE_CAMERA;
+
+static asr_language_t s_UserLanguage = ASR_ENGLISH;
+static event_voice_t s_VoiceEvent;
 
 /*******************************************************************************
  * Prototypes
@@ -202,7 +182,7 @@ static hal_output_status_t HAL_OutputDev_UiHomePanel_Stop(const output_dev_t *de
 static void _StopVoiceCmd(void);
 
 __attribute__((weak)) uint32_t APP_OutputDev_UiHomePanel_InferCompleteDecode(output_algo_source_t source,
-                                                                                 void *inferResult)
+                                                                             void *inferResult)
 {
     return 0;
 }
@@ -212,8 +192,8 @@ __attribute__((weak)) uint32_t APP_OutputDev_UiHomePanel_InputNotifyDecode(event
 }
 
 static hal_output_status_t HAL_OutputDev_UiHomePanel_InferComplete(const output_dev_t *dev,
-                                                                       output_algo_source_t source,
-                                                                       void *inferResult);
+                                                                   output_algo_source_t source,
+                                                                   void *inferResult);
 static hal_output_status_t HAL_OutputDev_UiHomePanel_InputNotify(const output_dev_t *dev, void *data);
 
 #if defined(__cplusplus)
@@ -246,6 +226,7 @@ const static output_dev_event_handler_t s_OutputDev_UiHomePanelHandler = {
 /*******************************************************************************
  * Code
  ******************************************************************************/
+#if 0
 void LoadIcons(void *base)
 {
     s_Icons[ICON_PROGRESS_BAR] = (base + 0);
@@ -577,51 +558,168 @@ void DeregisterCoffeeSelection()
         _DrawPreviewUI(g_PreviewMode, 1, s_FaceRecIndicator, 0, s_FaceRecProgress);
     }
 }
+#endif
 
-void UI_EnterScreen_Callback(coffee_machine_screen_id_t screenId)
+static void _SetVoiceModel(asr_inference_t modelId, asr_language_t lang, uint8_t ptt)
 {
-    LOGD("[UI] Enter screen:%s", get_screen_name(screenId));
+    LOGD("[UI] Set voice model:%d, language %d, ptt %d", modelId, lang, ptt);
+
+    output_event_t output_event = {0};
+
+    output_event.eventId   = kOutputEvent_VoiceAlgoInputNotify;
+    output_event.data      = &s_VoiceEvent;
+    output_event.copy      = 1;
+    output_event.size      = sizeof(s_VoiceEvent);
+    output_event.eventInfo = kEventInfo_Remote;
+
+    s_VoiceEvent.event_base.eventId   = SET_VOICE_MODEL;
+    s_VoiceEvent.event_base.eventInfo = kEventInfo_Remote;
+    s_VoiceEvent.set_asr_config.demo  = modelId;
+    s_VoiceEvent.set_asr_config.lang  = lang;
+    s_VoiceEvent.set_asr_config.ptt   = ptt;
+
+    uint8_t fromISR = __get_IPSR();
+    s_OutputDev_UiHomePanel.cap.callback(s_OutputDev_UiHomePanel.id, output_event, fromISR);
+}
+
+static void _OutputManagerNotify(event_common_t *event)
+{
+    output_event_t output_event = {0};
+    output_event.eventId        = kOutputEvent_OutputInputNotify;
+    output_event.data           = event;
+    output_event.copy           = 1;
+    output_event.size           = sizeof(event_common_t);
+    output_event.eventInfo      = kEventInfo_Remote;
+
+    uint8_t fromISR = __get_IPSR();
+
+    s_OutputDev_UiHomePanel.cap.callback(s_OutputDev_UiHomePanel.id, output_event, fromISR);
+}
+
+static void _PlayAudioStream(uint32_t event_id)
+{
+    event_common_t playAudioEvent;
+
+    memset(&playAudioEvent, 0, sizeof(playAudioEvent));
+    playAudioEvent.eventBase.eventId = event_id;
+    playAudioEvent.data              = NULL;
+    _OutputManagerNotify(&playAudioEvent);
+}
+
+void UI_VolumeChangeNotify(uint8_t volume)
+{
+    event_common_t setVolumeEvent;
+
+    memset(&setVolumeEvent, 0, sizeof(setVolumeEvent));
+    setVolumeEvent.eventBase.eventId    = kEventID_SetSpeakerVolume;
+    setVolumeEvent.speakerVolume.volume = volume;
+    _OutputManagerNotify(&setVolumeEvent);
+}
+
+static void _EnableGestureControl(uint8_t enable)
+{
+    static event_face_rec_t s_EnableGestureControl;
+    output_event_t output_event = {0};
+
+    output_event.eventId   = kOutputEvent_VisionAlgoInputNotify;
+    output_event.data      = &s_EnableGestureControl;
+    output_event.copy      = 1;
+    output_event.size      = sizeof(s_EnableGestureControl);
+    output_event.eventInfo = kEventInfo_Remote;
+
+    memset(&s_EnableGestureControl, 0, sizeof(s_EnableGestureControl));
+    s_EnableGestureControl.eventBase.eventId = kEventFaceRecID_UvitaGestureSetState;
+
+    if (enable == true)
+    {
+        s_EnableGestureControl.uvitaState.state = kUvitaState_Running;
+    }
+    else
+    {
+        s_EnableGestureControl.uvitaState.state = kUvitaState_Stopped;
+    }
+
+    uint8_t fromISR = __get_IPSR();
+
+    s_OutputDev_UiHomePanel.cap.callback(s_OutputDev_UiHomePanel.id, output_event, fromISR);
+}
+
+void UI_AudioPlaying_Callback(audio_event_t audio_event)
+{
+    switch (audio_event)
+    {
+        case kAudioPlayer_Play:
+            _PlayAudioStream(kEventID_StreamerPlay);
+            break;
+        case kAudioPlayer_Pause:
+            _PlayAudioStream(kEventID_StreamerPause);
+            break;
+        case kAudioPlayer_Next:
+            _PlayAudioStream(kEventID_StreamerNext);
+            break;
+        case kAudioPlayer_Pre:
+            _PlayAudioStream(kEventID_StreamerPrevious);
+            break;
+        case kAudioPlayer_Stop:
+            _PlayAudioStream(kEventID_StreamerStop);
+            break;
+        case kAudioPlayer_Load:
+            _PlayAudioStream(kEventID_StreamerLoad);
+            break;
+        default:
+            break;
+    }
+}
+
+void UI_EnterScreen_Callback(home_panel_screen_id_t screenId)
+{
     switch (screenId)
     {
-        case SCR_HOME:
+        case kScreen_Home:
         {
-            // draw overlay UI
-            s_EnterStandby              = false;
-            s_FaceRecProgress           = 0.0f;
-            s_IsWaitingAnotherSelection = 0;
-            s_Recognized                = 0;
-            s_UserId                    = -1;
-            s_UserCoffeeType            = kCoffeeType_NumTypes;
-            s_UserCoffeeSize            = kCoffeeSize_NumSizes;
-            s_UserCoffeeStrengh         = kCoffeeStrength_NumStrengths;
-            s_FaceRecIndicator          = FACE_REC_INDICATOR_INIT;
-            _DrawPreviewUI(g_PreviewMode, 1, s_FaceRecIndicator, 1, s_FaceRecProgress);
-            _FaceRecProgressTimer_Start();
-            // disable the lpm
-            FWK_LpmManager_EnableSleepMode(0);
-            // start the face rec
-            _StopFaceRec(0);
+            _SetVoiceModel(ASR_CMD_HP_MAIN_MENU, s_UserLanguage, 0);
         }
         break;
-        case SCR_BREWING:
-        {
-            _CheckBrewingTimer_Start();
-        }
-        break;
-        case SCR_FINISHED:
+        case kScreen_Therm:
         {
         }
         break;
-        case SCR_STANDBY:
+        case kScreen_Security:
         {
-            s_Recognized       = 0;
-            s_UserId           = -1;
-            s_EnterStandby     = true;
-            s_FaceRecIndicator = FACE_REC_INDICATOR_INIT;
-            _DrawPreviewUI(g_PreviewMode, 1, s_FaceRecIndicator, 0, 0);
-            _StopFaceRec(1);
-            _StopVoiceCmd();
-            FWK_LpmManager_EnableSleepMode(1);
+        }
+        break;
+        case kScreen_AudioPlayer:
+        {
+            /* Set voice model for audio player */
+            _SetVoiceModel(ASR_CMD_HP_AUDIO_PLAYER, s_UserLanguage, 0);
+            /* Start gesture */
+            _EnableGestureControl(true);
+        }
+        break;
+        default:
+            break;
+    }
+}
+
+void UI_ExitScreen_Callback(home_panel_screen_id_t screenId)
+{
+    switch (screenId)
+    {
+        case kScreen_Home:
+        {
+        }
+        break;
+        case kScreen_Therm:
+        {
+        }
+        break;
+        case kScreen_Security:
+        {
+        }
+        break;
+        case kScreen_AudioPlayer:
+        {
+            _EnableGestureControl(false);
         }
         break;
         default:
@@ -636,7 +734,7 @@ static hal_output_status_t HAL_OutputDev_UiHomePanel_Init(output_dev_t *dev, out
 
     dev->cap.callback = callback;
 
-    LoadIcons((unsigned char *)APP_ICONS_BASE);
+    //    LoadIcons((unsigned char *)APP_ICONS_BASE);
 
     /* Add initialization code here */
     s_UiSurface.left   = 0;
@@ -650,26 +748,26 @@ static hal_output_status_t HAL_OutputDev_UiHomePanel_Init(output_dev_t *dev, out
     s_UiSurface.buf    = s_AsBuffer;
     s_UiSurface.lock   = xSemaphoreCreateMutex();
 
-    pFaceRecProgressTimer =
-        xTimerCreate("FaceRecProgress", (TickType_t)pdMS_TO_TICKS(FACE_REC_UPDATE_INTERVAL), pdTRUE,
-                     (void *)&s_FaceRecProgress, (TimerCallbackFunction_t)_FaceRecProgressTimer_Callback);
-    if (pFaceRecProgressTimer == NULL)
-    {
-        LOGE("[UI] Failed to start \"FaceRecProgress\" timer.");
-    }
-
-    s_VirtualFaceSurface.left   = 0;
-    s_VirtualFaceSurface.top    = 0;
-    s_VirtualFaceSurface.right  = UI_BUFFER_WIDTH - 1;
-    s_VirtualFaceSurface.bottom = UI_BUFFER_HEIGHT - 1;
-    s_VirtualFaceSurface.height = UI_BUFFER_HEIGHT;
-    s_VirtualFaceSurface.width  = UI_BUFFER_WIDTH;
-    s_VirtualFaceSurface.pitch  = UI_BUFFER_WIDTH * 2;
-    s_VirtualFaceSurface.format = kPixelFormat_RGB565;
-    s_VirtualFaceSurface.buf    = s_VirtualFaceBuffer;
-    s_VirtualFaceSurface.lock   = NULL;
-
-    _DrawVirtualFaceIcon(&s_VirtualFaceSurface, s_Icons[ICON_VIRTUAL_FACE_BLUE]);
+    //    pFaceRecProgressTimer =
+    //        xTimerCreate("FaceRecProgress", (TickType_t)pdMS_TO_TICKS(FACE_REC_UPDATE_INTERVAL), pdTRUE,
+    //                     (void *)&s_FaceRecProgress, (TimerCallbackFunction_t)_FaceRecProgressTimer_Callback);
+    //    if (pFaceRecProgressTimer == NULL)
+    //    {
+    //        LOGE("[UI] Failed to start \"FaceRecProgress\" timer.");
+    //    }
+    //
+    //    s_VirtualFaceSurface.left   = 0;
+    //    s_VirtualFaceSurface.top    = 0;
+    //    s_VirtualFaceSurface.right  = UI_BUFFER_WIDTH - 1;
+    //    s_VirtualFaceSurface.bottom = UI_BUFFER_HEIGHT - 1;
+    //    s_VirtualFaceSurface.height = UI_BUFFER_HEIGHT;
+    //    s_VirtualFaceSurface.width  = UI_BUFFER_WIDTH;
+    //    s_VirtualFaceSurface.pitch  = UI_BUFFER_WIDTH * 2;
+    //    s_VirtualFaceSurface.format = kPixelFormat_RGB565;
+    //    s_VirtualFaceSurface.buf    = s_VirtualFaceBuffer;
+    //    s_VirtualFaceSurface.lock   = NULL;
+    //
+    //    _DrawVirtualFaceIcon(&s_VirtualFaceSurface, s_Icons[ICON_VIRTUAL_FACE_BLUE]);
 
     LOGD("--HAL_OutputDev_UiHomePanel_Init");
     return error;
@@ -714,95 +812,95 @@ static hal_output_status_t HAL_OutputDev_UiHomePanel_Stop(const output_dev_t *de
 
 static hal_output_status_t _InferComplete_Vision(const output_dev_t *dev,
                                                  void *inferResult,
-                                                 coffee_machine_screen_id_t currentScreenId)
+                                                 home_panel_screen_id_t currentScreenId)
 {
     hal_output_status_t error              = kStatus_HAL_OutputSuccess;
     vision_algo_result_t *visionAlgoResult = (vision_algo_result_t *)inferResult;
     oasis_lite_result_t *pResult           = NULL;
 
-    if (visionAlgoResult != NULL)
+    /* Call to avoid warning for not used */
+    pResult;
+
+    if (visionAlgoResult == NULL)
     {
-        if (visionAlgoResult->id == kVisionAlgoID_OasisLite)
-        {
-            pResult = (oasis_lite_result_t *)&(visionAlgoResult->oasisLite);
-        }
+        LOGD("Receive NULL results");
+        return kStatus_HAL_OutputSuccess;
     }
 
-    if (pResult != NULL)
+    if (currentScreenId == kScreen_AudioPlayer)
     {
-        LOGD("[UI] Screen:%s face recognized:%d face_id:%d", get_screen_name(currentScreenId), pResult->face_recognized,
-             pResult->face_id);
-        if (currentScreenId == SCR_HOME)
+        gesture_result_t *pHandResult = NULL;
+        if (visionAlgoResult->id == kVisionAlgoID_UvitaGesture)
         {
-            int drawUpdate     = 0;
-            s_FaceRecIndicator = FACE_REC_INDICATOR_INIT;
-            if (!pResult->face_recognized && pResult->face_id < 0)
+            pHandResult = (gesture_result_t *)&(visionAlgoResult->uvitaHandGesture);
+        }
+
+        if (pHandResult != NULL)
+        {
+            static gesture_type oldGestureSign = GESTURE_NONE;
+            static hand_lr oldHand             = NONE_HAND;
+            LOGI("Hand gesture %d Old Hand gesture %d, Hand %d", pHandResult->hand.gtype, oldGestureSign,
+                 pHandResult->hand.left_right)
+            if ((oldGestureSign != pHandResult->hand.gtype) && (pHandResult->hand.gtype == GESTURE_OK))
             {
-                // start the recognition
-                s_FaceRecProgress = 0.0f;
-                drawUpdate        = 1;
-                _FaceRecProgressTimer_Start();
-            }
-            else if (pResult->face_recognized && pResult->face_id >= 0)
-            {
-                // known user
-                s_IsWaitingAnotherSelection = 1;
-                s_FaceRecProgress           = 1.0f;
-                drawUpdate                  = 1;
-                s_FaceRecIndicator          = FACE_REC_INDICATOR_KNOWN;
-                _FaceRecProgressTimer_Stop();
-
-                // store the user's selection
-                coffee_result_t *pAttr = (coffee_result_t *)pResult->userData;
-                s_Recognized           = 1;
-                s_UserId               = pResult->face_id;
-                s_UserCoffeeType       = pAttr->coffeeType;
-                s_UserCoffeeSize       = pAttr->coffeeSize;
-                s_UserCoffeeStrengh    = pAttr->coffeeStrength;
-
-                // update the UI to user's coffee selection
-                set_coffee_type(s_UserCoffeeType);
-                set_coffee_size(s_UserCoffeeSize);
-                set_coffee_strength(s_UserCoffeeStrengh);
-
-                // ask another selection
-                int promptId = PROMPT_INVALID;
-                switch (s_UserCoffeeType)
+                audio_state_t audioPlayerState = get_audio_player_state();
+                if (kAudioState_Play == audioPlayerState)
                 {
-                    case kCoffeeType_Americano:
-                        promptId = PROMPT_ANOTHER_AMERICANO;
-                        break;
-                    case kCoffeeType_Cappuccino:
-                        promptId = PROMPT_ANOTHER_CAPPUCCINO;
-                        break;
-                    case kCoffeeType_Espresso:
-                        promptId = PROMPT_ANOTHER_ESPRESSO;
-                        break;
-                    case kCoffeeType_Latte:
-                        promptId = PROMPT_ANOTHER_CAFE_LATTE;
-                        break;
-                    default:
-                        break;
+                    UI_AudioPlaying_Callback(kAudioPlayer_Pause);
+                    audioPlayerState = kAudioState_Pause;
                 }
-                if (promptId != PROMPT_INVALID)
+                else if (kAudioState_Pause == audioPlayerState)
                 {
-                    _PlayPrompt(promptId);
+                    UI_AudioPlaying_Callback(kAudioPlayer_Play);
+                    audioPlayerState = kAudioPlayer_Play;
+                }
+                set_audio_player_state(audioPlayerState);
+                refresh_audio_player_state();
+            }
+            else if (pHandResult->hand.gtype == GESTURE_THUMB_UP)
+            {
+                if ((pHandResult->hand.left_right == oldHand) && (oldGestureSign == pHandResult->hand.gtype))
+                {
+                    /* Nothing to do, same sign */
+                }
+                else if (LEFT_HAND == pHandResult->hand.left_right)
+                {
+                    UI_AudioPlaying_Callback(kAudioPlayer_Pre);
+                }
+                else if (RIGHT_HAND == pHandResult->hand.left_right)
+                {
+                    UI_AudioPlaying_Callback(kAudioPlayer_Next);
                 }
             }
-            else if (pResult->face_recognized && pResult->face_id < 0)
+            else if ((oldGestureSign != pHandResult->hand.gtype) && (pHandResult->hand.gtype == GESTURE_PALM))
             {
-                // new user
-                s_Recognized       = 1;
-                s_UserId           = -1;
-                s_FaceRecProgress  = 1.0f;
-                drawUpdate         = 1;
-                s_FaceRecIndicator = FACE_REC_INDICATOR_UNKNOWN;
-                _FaceRecProgressTimer_Stop();
+                int8_t volume = get_speaker_volume();
+                volume        = volume + VOLUME_STEP_SIZE;
+                if (volume >= kAudioVolume_Max)
+                {
+                    volume = kAudioVolume_Max - 1;
+                }
+                set_speaker_volume(volume);
+                refresh_audio_player_volume();
+                UI_VolumeChangeNotify(volume);
+            }
+            else if ((oldGestureSign != pHandResult->hand.gtype) && (pHandResult->hand.gtype == GESTURE_FIST))
+            {
+                int8_t volume = get_speaker_volume();
+                volume        = volume - VOLUME_STEP_SIZE;
+                if (volume <= kAudioState_Invalid)
+                {
+                    volume = 0;
+                }
+                set_speaker_volume(volume);
+                refresh_audio_player_volume();
+                UI_VolumeChangeNotify(volume);
             }
 
-            if (drawUpdate)
+            if (pHandResult->hand.gtype != GESTURE_NONE)
             {
-                _DrawPreviewUI(g_PreviewMode, 1, s_FaceRecIndicator, 1, s_FaceRecProgress);
+                oldGestureSign = pHandResult->hand.gtype;
+                oldHand        = pHandResult->hand.left_right;
             }
         }
     }
@@ -812,305 +910,97 @@ static hal_output_status_t _InferComplete_Vision(const output_dev_t *dev,
 
 static hal_output_status_t _InferComplete_Voice(const output_dev_t *dev,
                                                 void *inferResult,
-                                                coffee_machine_screen_id_t currentScreenId)
+                                                home_panel_screen_id_t currentScreenId)
 {
     hal_output_status_t error               = kStatus_HAL_OutputSuccess;
     asr_inference_result_t *voiceAlgoResult = (asr_inference_result_t *)inferResult;
-    LOGD("[UI] Screen:%s voice command status:%d  cmd:%d %d:%d", get_screen_name(currentScreenId),
-         voiceAlgoResult->status, voiceAlgoResult->keywordID, s_IsWaitingAnotherSelection,
-         s_IsWaitingRegisterSelection);
+    LOGD("[UI] Screen:%d voice command status:%d  cmd:%d", currentScreenId, voiceAlgoResult->status,
+         voiceAlgoResult->keywordID);
 
-    if (currentScreenId == SCR_STANDBY)
-    {
-        if (voiceAlgoResult->status == ASR_WW_DETECT)
-        {
-            // wake up word detected
-            _PlayPrompt(PROMPT_CAN_I_HELP);
-            // go to home screen
-            set_home_screen();
-        }
-    }
-    else if (currentScreenId == SCR_HOME)
+    if (currentScreenId == kScreen_Home)
     {
         if (voiceAlgoResult->status == ASR_CMD_DETECT && voiceAlgoResult->keywordID > -1)
         {
             // voice command detected
             switch (voiceAlgoResult->keywordID)
             {
-                case (VOICE_CMD_START):
+                case (VOICE_CMD_THERM):
                 {
-                    _PlayPrompt(PROMPT_CONFIRM_TONE);
-                    brew_coffee(get_coffee_type());
+                    gui_load_screen(kScreen_Therm, 0);
                 }
                 break;
-                case (VOICE_CMD_CONFIRM):
+                case (VOICE_CMD_SECURITY):
                 {
-                    if (s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        s_IsWaitingAnotherSelection = 0;
-                        set_coffee_type(s_UserCoffeeType);
-                        set_coffee_size(s_UserCoffeeSize);
-                        set_coffee_strength(s_UserCoffeeStrengh);
-                        brew_coffee(s_UserCoffeeType);
-                    }
+                    gui_load_screen(kScreen_Security, 0);
                 }
                 break;
-                case (VOICE_CMD_CANCEL):
+                case (VOICE_CMD_AUDIO):
                 {
-                    if (s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        s_IsWaitingAnotherSelection = 0;
-                    }
-                }
-                break;
-                case (VOICE_CMD_ESPRESSO):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_type_t curType = get_coffee_type();
-                        coffee_type_t newType = kCoffeeType_Espresso;
-                        if (curType != newType)
-                        {
-                            LOGD("[UI] CurType:%d newType:%d", curType, newType);
-                            set_coffee_type(newType);
-                        }
-                    }
-                }
-                break;
-                case (VOICE_CMD_AMERICANO):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_type_t curType = get_coffee_type();
-                        coffee_type_t newType = kCoffeeType_Americano;
-                        if (curType != newType)
-                        {
-                            LOGD("[UI] CurType:%d newType:%d", curType, newType);
-                            set_coffee_type(newType);
-                        }
-                    }
-                }
-                break;
-                case (VOICE_CMD_CAPPUCCINO):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_type_t curType = get_coffee_type();
-                        coffee_type_t newType = kCoffeeType_Cappuccino;
-                        if (curType != newType)
-                        {
-                            LOGD("[UI] CurType:%d newType:%d", curType, newType);
-                            set_coffee_type(newType);
-                        }
-                    }
-                }
-                break;
-                case (VOICE_CMD_CAFE_LATTE):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_type_t curType = get_coffee_type();
-                        coffee_type_t newType = kCoffeeType_Latte;
-                        if (curType != newType)
-                        {
-                            LOGD("[UI] CurType:%d newType:%d", curType, newType);
-                            set_coffee_type(newType);
-                        }
-                    }
-                }
-                break;
-                case (VOICE_CMD_SMALL):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_size_t curSize = get_coffee_size();
-                        coffee_size_t newSize = kCoffeeSize_Small;
-                        if (curSize != newSize)
-                        {
-                            LOGD("[UI] CurSize:%d newSize:%d", curSize, newSize);
-                            set_coffee_size(newSize);
-                        }
-                    }
-                }
-                break;
-                case (VOICE_CMD_MEDIUM):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_size_t curSize = get_coffee_size();
-                        coffee_size_t newSize = kCoffeeSize_Medium;
-                        if (curSize != newSize)
-                        {
-                            LOGD("[UI] CurSize:%d newSize:%d", curSize, newSize);
-                            set_coffee_size(newSize);
-                        }
-                    }
-                }
-                break;
-                case (VOICE_CMD_LARGE):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_size_t curSize = get_coffee_size();
-                        coffee_size_t newSize = kCoffeeSize_Large;
-                        if (curSize != newSize)
-                        {
-                            LOGD("[UI] CurSize:%d newSize:%d", curSize, newSize);
-                            set_coffee_size(newSize);
-                        }
-                    }
-                }
-                break;
-                case (VOICE_CMD_SOFT):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_strength_t curStrength = get_coffee_strength();
-                        coffee_strength_t newStrength = kCoffeeStrength_Weak;
-                        LOGD("[UI] CurStrength:%d newStrength:%d", curStrength, newStrength);
-                        set_coffee_strength(newStrength);
-                    }
-                }
-                break;
-                case (VOICE_CMD_MILD):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_strength_t curStrength = get_coffee_strength();
-                        coffee_strength_t newStrength = kCoffeeStrength_Medium;
-                        LOGD("[UI] CurStrength:%d newStrength:%d", curStrength, newStrength);
-                        set_coffee_strength(newStrength);
-                    }
-                }
-                break;
-                case (VOICE_CMD_STRONG):
-                {
-                    if (!s_IsWaitingAnotherSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        coffee_strength_t curStrength = get_coffee_strength();
-                        coffee_strength_t newStrength = kCoffeeStrength_Strong;
-                        LOGD("[UI] CurStrength:%d newStrength:%d", curStrength, newStrength);
-                        set_coffee_strength(newStrength);
-                    }
-                }
-                break;
-                case (VOICE_CMD_DEREGISTER):
-                {
-                    _PlayPrompt(PROMPT_CONFIRM_TONE);
-                    DeregisterCoffeeSelection();
+                    gui_load_screen(kScreen_AudioPlayer, 0);
                 }
                 break;
                 default:
                     break;
             }
         }
-        else if (voiceAlgoResult->status == ASR_TIMEOUT)
-        {
-            _PlayPrompt(PROMPT_TONE_TIMEOUT);
-            // voice command session timeout
-            if (s_EnterStandby == false)
-            {
-                set_standby_screen();
-            }
-        }
-
-        if (s_IsWaitingAnotherSelection)
-        {
-            // cancel the user's confirmation
-            s_IsWaitingAnotherSelection = 0;
-        }
     }
-    else if (currentScreenId == SCR_FINISHED)
+    else if (currentScreenId == kScreen_AudioPlayer)
     {
         if (voiceAlgoResult->status == ASR_CMD_DETECT && voiceAlgoResult->keywordID > -1)
         {
             switch (voiceAlgoResult->keywordID)
             {
-                case (VOICE_CMD_CONFIRM):
+                case (VOICE_CMD_MAIN):
+                case (VOICE_CMD_BACK):
                 {
-                    if (s_IsWaitingRegisterSelection)
-                    {
-                        _PlayPrompt(PROMPT_CONFIRM_TONE);
-                        _FaceRecProgressTimer_Stop();
-                        s_IsWaitingRegisterSelection = 0;
-
-                        coffee_type_t curType         = get_coffee_type();
-                        coffee_size_t curSize         = get_coffee_size();
-                        coffee_strength_t curStrength = get_coffee_strength();
-                        _RegisterCoffeeSelection(curType, curSize, curStrength);
-                        s_Recognized = 0;
-                        s_UserId     = -1;
-                    }
+                    gui_load_screen(kScreen_Home, 0);
                 }
                 break;
-                case (VOICE_CMD_CANCEL):
+                case (VOICE_CMD_NEXT_MUSIC):
                 {
-                    _PlayPrompt(PROMPT_CONFIRM_TONE);
-                    if (s_IsWaitingRegisterSelection)
-                    {
-                        s_Recognized = 0;
-                        s_UserId     = -1;
-                        _FaceRecProgressTimer_Stop();
-                        s_IsWaitingRegisterSelection = 0;
-                    }
-                    else
-                    {
-                        set_home_screen();
-                    }
+                    audio_state_t state = get_audio_player_state();
+                    audio_index_t index = get_audio_info_index();
+                    switch_audio_clip(index + 1, state);
+                }
+                break;
+                case (VOICE_CMD_PRE_MUSIC):
+                {
+                    audio_state_t state = get_audio_player_state();
+                    audio_index_t index = get_audio_info_index();
+                    switch_audio_clip(index - 1, state);
+                }
+                break;
+                case (VOICE_CMD_START_PLAY):
+                {
+                    switch_audio_player_state(kAudioState_Play);
+                }
+                break;
+                case (VOICE_CMD_PAUSE_PLAY):
+                {
+                    switch_audio_player_state(kAudioState_Pause);
+                }
+                case (VOICE_CMD_VOL_UP):
+                {
+                    // TODO: set speaker volume via voice
+                }
+                break;
+                case (VOICE_CMD_VOL_DOWN):
+                {
+                    // TODO: set speaker volume via voice
                 }
                 break;
                 default:
                     break;
             }
         }
-        else if (voiceAlgoResult->status == ASR_TIMEOUT)
-        {
-            _PlayPrompt(PROMPT_TONE_TIMEOUT);
-            // voice command session timeout
-            if (s_IsWaitingRegisterSelection)
-            {
-                s_IsWaitingRegisterSelection = 0;
-            }
-            if (s_EnterStandby == false)
-            {
-                set_standby_screen();
-            }
-        }
     }
-    else if (currentScreenId == SCR_BREWING)
-    {
-        if (voiceAlgoResult->status == ASR_TIMEOUT)
-        {
-            _PlayPrompt(PROMPT_TONE_TIMEOUT);
-            // voice command session timeout
-            if (s_IsWaitingRegisterSelection)
-            {
-                s_IsWaitingRegisterSelection = 0;
-            }
-            if (s_EnterStandby == false)
-            {
-                set_standby_screen();
-            }
-        }
-    }
+
     return error;
 }
 
 static hal_output_status_t HAL_OutputDev_UiHomePanel_InferComplete(const output_dev_t *dev,
-                                                                       output_algo_source_t source,
-                                                                       void *inferResult)
+                                                                   output_algo_source_t source,
+                                                                   void *inferResult)
 {
     hal_output_status_t error = kStatus_HAL_OutputSuccess;
 
@@ -1119,9 +1009,10 @@ static hal_output_status_t HAL_OutputDev_UiHomePanel_InferComplete(const output_
         return error;
     }
 
-    coffee_machine_screen_id_t currentScreenId = get_current_screen();
+    LVGL_LOCK();
+    home_panel_screen_id_t currentScreenId = get_current_screen();
 
-    if (currentScreenId == SCR_INVALID)
+    if (currentScreenId == kScreen_Num)
     {
         return error;
     }
@@ -1130,11 +1021,12 @@ static hal_output_status_t HAL_OutputDev_UiHomePanel_InferComplete(const output_
     {
         _InferComplete_Vision(dev, inferResult, currentScreenId);
     }
+
     else if (source == kOutputAlgoSource_Voice)
     {
         _InferComplete_Voice(dev, inferResult, currentScreenId);
     }
-
+    LVGL_UNLOCK();
     return error;
 }
 
@@ -1142,20 +1034,21 @@ static hal_output_status_t HAL_OutputDev_UiHomePanel_InputNotify(const output_de
 {
     hal_output_status_t error = kStatus_HAL_OutputSuccess;
     event_base_t *pEventBase  = (event_base_t *)data;
+    /* Get current screen to help the state machine */
 
     if (pEventBase->eventId == kEventID_SetPreviewMode)
     {
-        event_smart_tlhmi_t *pEvent = (event_smart_tlhmi_t *)pEventBase;
-        if (g_PreviewMode != pEvent->previewMode)
-        {
-            _DrawPreviewUI(pEvent->previewMode, 1, s_FaceRecIndicator, 1, s_FaceRecProgress);
-            g_PreviewMode = pEvent->previewMode;
-        }
+        //        event_smart_tlhmi_t *pEvent = (event_smart_tlhmi_t *)pEventBase;
+        //        if (g_PreviewMode != pEvent->previewMode)
+        //        {
+        //            _DrawPreviewUI(pEvent->previewMode, 1, s_FaceRecIndicator, 1, s_FaceRecProgress);
+        //            g_PreviewMode = pEvent->previewMode;
+        //        }
 
-        if (pEventBase->respond != NULL)
-        {
-            pEventBase->respond(pEventBase->eventId, &pEvent->previewMode, kEventStatus_Ok, true);
-        }
+        //        if (pEventBase->respond != NULL)
+        //        {
+        //            pEventBase->respond(pEventBase->eventId, &pEvent->previewMode, kEventStatus_Ok, true);
+        //        }
     }
     else if (pEventBase->eventId == kEventID_GetPreviewMode)
     {
@@ -1164,12 +1057,65 @@ static hal_output_status_t HAL_OutputDev_UiHomePanel_InputNotify(const output_de
             pEventBase->respond(pEventBase->eventId, &g_PreviewMode, kEventStatus_Ok, true);
         }
     }
-    else
+
+    LVGL_LOCK();
+
+    home_panel_screen_id_t currScreen = get_current_screen();
+    home_panel_screen_id_t nextScreen = get_next_screen();
+
+    LOGI("CurrScreen %d, NextScreen %d", currScreen, nextScreen);
+    if (currScreen == kScreen_AudioPlayer || nextScreen == kScreen_AudioPlayer)
     {
-        /* Add 'inputNotify' event handler code here */
-        APP_OutputDev_UiHomePanel_InputNotifyDecode(pEventBase);
+        if (pEventBase->eventId == kEventID_MediaPlayer_TrackPosition)
+        {
+            event_smart_tlhmi_t *pEvent = (event_smart_tlhmi_t *)pEventBase;
+            set_audio_position(pEvent->trackInfo.offset);
+            refresh_audio_position();
+        }
+        else if (pEventBase->eventId == kEventID_MediaPlayerInfo)
+        {
+            event_smart_tlhmi_t *pEvent = (event_smart_tlhmi_t *)pEventBase;
+            /* TODO */
+            audio_state_t currState = get_audio_player_state();
+
+            LOGI("pEvent->mediaPlayerInfo.isPlaying %d", pEvent->mediaPlayerInfo.isPlaying);
+            if (pEvent->mediaPlayerInfo.isPlaying)
+            {
+                set_audio_player_state(kAudioState_Play);
+            }
+            else
+            {
+                set_audio_player_state(kAudioState_Pause);
+            }
+
+            if (currState != get_audio_player_state())
+            {
+                refresh_audio_player_state();
+            }
+
+            if (pEvent->mediaPlayerInfo.volume != get_speaker_volume())
+            {
+                set_speaker_volume(pEvent->mediaPlayerInfo.volume);
+                refresh_audio_player_volume();
+            }
+        }
+        else if (pEventBase->eventId == kEventID_MediaPlayer_TrackInfo)
+        {
+            static uint8_t songArtist[32];
+            static uint8_t songName[32];
+            event_smart_tlhmi_t *pEvent = (event_smart_tlhmi_t *)pEventBase;
+
+            strcpy(songArtist, (char *)pEvent->trackInfo.songArtist);
+            strcpy(songName, (char *)pEvent->trackInfo.songName);
+
+            audio_info_t audioInfo = {
+                .name = (char *)songName, .elapsed_time = 0, .total_time = pEvent->trackInfo.songDurationS};
+            set_audio_info(audioInfo);
+            refresh_audio_player_info();
+        }
     }
 
+    LVGL_UNLOCK();
     return error;
 }
 

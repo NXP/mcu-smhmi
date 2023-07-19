@@ -12,11 +12,12 @@ NXP Confidential. This software is owned or controlled by NXP and may only be us
 extern "C" {
 #endif
 
-typedef enum {
+typedef enum RdspStatus {
     OK = 0,
     GENERAL_ERROR = 1,
     MALLOC_FAIL = 2,
     INVALID_PARAMETERS = 3,
+    NOT_ENABLED = 4,
 	RDSP_VOICESEEKER_LICENSE_EXPIRED = -12
 } RdspStatus;
 

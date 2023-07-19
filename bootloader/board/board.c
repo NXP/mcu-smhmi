@@ -16,6 +16,7 @@
 #include "fsl_cache.h"
 #endif
 
+#include "fsl_soc_src.h"
 /*******************************************************************************
  * Variables
  ******************************************************************************/
@@ -622,6 +623,20 @@ void BOARD_RelocateVectorTableToRam(void)
     SCB_EnableDCache();
 
     EnableGlobalIRQ(irqMaskValue);
+}
+
+void BOARD_ResetDisplayMix(void)
+{
+    /*
+     * Reset the displaymix, otherwise during debugging, the
+     * debugger may not reset the display, then the behavior
+     * is not right.
+     */
+    SRC_AssertSliceSoftwareReset(SRC, kSRC_DisplaySlice);
+
+    while (kSRC_SliceResetInProcess == SRC_GetSliceResetState(SRC, kSRC_DisplaySlice))
+    {
+    }
 }
 
 void BOARD_SD_Pin_Config(uint32_t speed, uint32_t strength)

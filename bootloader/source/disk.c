@@ -39,6 +39,8 @@
 #include "sln_rgb_led_driver.h"
 #include "sln_msc_vfs.h"
 #include "sln_update.h"
+#include "update_monitor.h"
+
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -423,6 +425,7 @@ int32_t USB_Transfer_Monitor(void)
             break;
         case TRANSFER_START:
         case TRANSFER_ACTIVE:
+        case TRANSFER_PENDING:
             RGB_LED_Blink(LED_BRIGHT_LOW, LED_COLOR_BLUE, BLINK_RATE, &blinkcount, &blinktoggle);
             break;
         case TRANSFER_FINAL:
@@ -442,7 +445,7 @@ void USB_Transfer_Finalize(void)
     msc_vfs_state_t transferState = MSC_VFS_GetTransferState();
     int32_t imgType               = MSC_VFS_GetImgType();
 
-    if (TRANSFER_FINAL == transferState)
+    if (TRANSFER_PENDING == transferState)
     {
         configPRINTF(("Final!\r\n"));
 
@@ -456,6 +459,12 @@ void USB_Transfer_Finalize(void)
             MSC_VFS_SetTransferState(TRANSFER_ERROR);
             configPRINTF(("ERROR!\r\n"));
         }
+        else
+        {
+            transferState = TRANSFER_FINAL;
+            MSC_VFS_SetTransferState(TRANSFER_FINAL);
+            RGB_LED_SetBrightnessColor(LED_BRIGHT_LOW, LED_COLOR_GREEN);
+        }
     }
 
     if (TRANSFER_ERROR == transferState)
@@ -468,7 +477,7 @@ void USB_Transfer_Finalize(void)
     // Stop the USB before we do anything further
     USB_DeviceStop(g_msc.deviceHandle);
 
-    vTaskDelay(1000);
+    vTaskDelay(3000);
 
     ReRunBootloader();
 }
@@ -488,6 +497,8 @@ void USB_DeviceTask(void *handle)
 
 void USB_MSC_TASK(void *handle)
 {
+    SLN_UpdateMonitor_Init();
+    SLN_Update_Init(&SLN_UpdateMonitor_Callback);
     USB_DeviceApplicationInit();
 
 #if USB_DEVICE_CONFIG_USE_TASK

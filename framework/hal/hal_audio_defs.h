@@ -36,8 +36,8 @@
  * Set AFE_INPUT_MIC_SAMPLE_BYTES to 4 for 32 bit depth microphone data. */
 #define AFE_INPUT_MIC_SAMPLE_BYTES 4
 #else
-#define ASR_INPUT_FRAMES   1
-#define ASR_INPUT_CHANNELS 2
+#define ASR_INPUT_FRAMES   3
+#define ASR_INPUT_CHANNELS 1
 /* VIT Engine does not support AFE yet.
  * And so far VIT only support 16bit microphone raw data as input */
 #define AFE_INPUT_MIC_SAMPLE_BYTES 2

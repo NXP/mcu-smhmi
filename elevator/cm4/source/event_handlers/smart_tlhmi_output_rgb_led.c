@@ -16,7 +16,7 @@ rgbLedColor_t APP_OutputDev_RgbLed_InferCompleteDecode(output_algo_source_t sour
                                                        void *inferResult,
                                                        uint32_t *timerOn)
 {
-    rgbLedColor_t color = kRGBLedColor_Off;
+    rgbLedColor_t color = kRGBLedColor_None;
     switch (source)
     {
         case kOutputAlgoSource_Voice:
@@ -28,7 +28,8 @@ rgbLedColor_t APP_OutputDev_RgbLed_InferCompleteDecode(output_algo_source_t sour
                 switch (voiceAlgoResult->status)
                 {
                     case ASR_WW_DETECT:
-                        color = kRGBLedColor_Blue;
+                        color    = kRGBLedColor_Blue;
+                        *timerOn = 1000;
                         break;
                     case ASR_CMD_DETECT:
                         color    = kRGBLedColor_Green;

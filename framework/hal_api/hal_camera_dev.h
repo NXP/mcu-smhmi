@@ -49,13 +49,19 @@ typedef enum _hal_camera_status
 } hal_camera_status_t;
 
 /*! @brief Type of events that are supported by calling the callback function */
-typedef enum _camera_event
+typedef enum _camera_event_id
 {
     /* Camera new frame is available */
     kCameraEvent_SendFrame = MAKE_FRAMEWORK_EVENTS(kStatusFrameworkGroups_Camera, 1),
     /* Camera device finished the init process */
     kCameraEvent_CameraDeviceInit,
     kCameraEvent_Count
+} camera_event_id_t;
+
+typedef struct _camera_event
+{
+    camera_event_id_t eventId;
+    event_info_t eventInfo;
 } camera_event_t;
 
 /**

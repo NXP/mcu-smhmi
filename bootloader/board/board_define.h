@@ -22,9 +22,20 @@
 #define AT_NONCACHEABLE_SECTION_ALIGN_OCRAM(var, alignbytes) \
     __attribute__((section(".bss.$SRAM_OCRAM_NCACHED,\"aw\",%nobits @"))) var __attribute__((aligned(alignbytes)))
 
+#define AT_NONCACHEABLE_SECTION_ALIGN_SDRAM(var, alignbytes) \
+    __attribute__((section(".bss.$NCACHE_REGION,\"aw\",%nobits @"))) var __attribute__((aligned(alignbytes)))
+
 /*********************************
   BOOTLOADER-SPECIFIC DEFINES
 **********************************/
+
+/*
+ *  Board define
+ */
+#define BOARD_1170EVK     0
+#define BOARD_SMART_TLHMI 1
+
+#define TARGET_BOARD BOARD_SMART_TLHMI
 
 #ifndef BOOTLOADER_MSD_ENABLED
 #define BOOTLOADER_MSD_ENABLED 0
