@@ -58,6 +58,10 @@ volatile uint32_t ErrorCnt   = 0;
 
 static fica_t s_fica = {0};
 
+#define NUM_ERASED_BLOCKS_PER_SLOT  (sizeof(uint8_t) * 8)
+#define ERASED_BLOCK_MAP_SIZE_BYTES (FICA_IMG_BANK_SIZE / FLASH_BLOCK_SIZE / NUM_ERASED_BLOCKS_PER_SLOT)
+static uint8_t s_erasedBlocksMap[ERASED_BLOCK_MAP_SIZE_BYTES] = {0};
+
 /*******************************************************************************
  * Code
  ******************************************************************************/
@@ -134,12 +138,8 @@ int32_t FICA_app_program_ext_abs(uint32_t offset, uint8_t *bufptr, uint32_t writ
     uint32_t pagestartaddr = (offset / EXT_FLASH_PROGRAM_PAGE) * EXT_FLASH_PROGRAM_PAGE;
     uint32_t prestartlen   = offset - pagestartaddr;
     uint32_t tempaddr      = 0;
-
-#if defined(ERASE_BLOCK_SUPPORT)
-    uint32_t sizeIncrement = EXT_FLASH_ERASE_BLOCK;
-#else
-    uint32_t sizeIncrement = EXT_FLASH_ERASE_PAGE;
-#endif /* ERASE_BLOCK_SUPPORT */
+    uint32_t blockSet      = 0;
+    uint32_t blockId       = 0;
 
     bool commflag = false;
 
@@ -202,13 +202,13 @@ int32_t FICA_app_program_ext_abs(uint32_t offset, uint8_t *bufptr, uint32_t writ
 
         tempaddr = curwriteaddr;
 
-        /* tempAddr is page aligned so if s_newAppImgStartAddr is sizeIncrement aligned
-         * s_newAppImgStartAddr + tempaddr will be in the end sizeIncrement aligned */
-
-        if ((s_newAppImgStartAddr + tempaddr) % sizeIncrement == 0)
+        /* Erase block (if not previously erased) before write it. */
+        blockSet = (tempaddr / FLASH_BLOCK_SIZE) / NUM_ERASED_BLOCKS_PER_SLOT;
+        blockId  = (tempaddr / FLASH_BLOCK_SIZE) % NUM_ERASED_BLOCKS_PER_SLOT;
+        if ((s_erasedBlocksMap[blockSet] & (1 << blockId)) == 0)
         {
-            // Erase all pages in this App bank
-            FICA_Erase_Bank(s_newAppImgStartAddr + tempaddr, sizeIncrement);
+            FICA_Erase_Bank(s_newAppImgStartAddr + tempaddr, FLASH_BLOCK_SIZE);
+            s_erasedBlocksMap[blockSet] |= (1 << blockId);
         }
 
         if (SLN_Write_Flash_At_Address(s_newAppImgStartAddr + tempaddr, (uint8_t *)s_appImgBuffer) !=
@@ -258,6 +258,7 @@ int32_t FICA_app_program_ext_finalize()
         status = FICA_clr_comm_flag(FICA_COMM_AIS_NAI_BIT);
     }
 
+    memset(s_erasedBlocksMap, 0, sizeof(s_erasedBlocksMap));
     return status;
 }
 

@@ -54,7 +54,7 @@
 #endif /* !AMP_LOOPBACK_DISABLED */
 #elif WAKE_WORD_MAX_LENGTH_MS <= 3000
 #if !AMP_LOOPBACK_DISABLED
-#define AFE_MEM_SIZE_2MICS (1024 * 146)
+#define AFE_MEM_SIZE_2MICS (1024 * 148)
 #define AFE_MEM_SIZE_3MICS (1024 * 221)
 #else
 #define AFE_MEM_SIZE_2MICS (1024 * 73)
@@ -103,6 +103,7 @@ typedef struct _sln_afe_config
     float postProcessedGain;      /*!< The amount of dynamic gain after processing. */
     uint32_t wakeWordMaxLength;   /*!< Max time duration of a wake word in milliseconds. */
     int32_t aecEnabled;           /*!< AEC feature enabled. */
+    int32_t doaEnabled;           /*!< DOA feature enabled. */
     uint32_t aecFilterLength;     /*!< AEC filter length (bigger length => better performance). */
     float micsPosition[3][3];     /*!< Mics coordinates in mm */
     afe_data_type_t dataInType;   /*!< Used for configuring the input type */

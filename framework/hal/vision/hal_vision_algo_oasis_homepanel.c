@@ -65,14 +65,11 @@ typedef struct _oasis_param
 /*******************************************************************************
  * Variables
  ******************************************************************************/
-static oasis_param_t s_OasisCoffeeMachine;
+static oasis_param_t s_OasisHomePanel;
 static const facedb_ops_t *s_pFacedbOps     = NULL;
-static const coffeedb_ops_t *s_pCoffeedbOps = NULL;
 static uint8_t *s_pFaceFeature              = NULL;
 static uint16_t s_faceId                    = -1;
 static uint16_t s_blockingList              = 0;
-/*dtc buffer for inference engine optimization*/
-FWKDATA static uint8_t s_DTCOPBuf[DTC_OPTIMIZE_BUFFER_SIZE];
 
 #if OASIS_STATIC_MEM_BUFFER
 __attribute__((section(".bss.$SRAM_OCRAM_CACHED"), aligned(64))) uint8_t g_OasisMemPool[OASIS_STATIC_MEM_POOL];
@@ -92,74 +89,8 @@ static uint8_t _check_blocker_bit(oasis_blocking_event_id_t blockerId);
 /*******************************************************************************
  * Code
  ******************************************************************************/
-
-static int _HalEventsHandler(uint32_t event_id, void *response, event_status_t status, unsigned char isFinished)
-{
-    if (response == NULL)
-    {
-        return -1;
-    }
-
-    switch (event_id)
-    {
-        case kEventFaceRecID_DelUserAll:
-        case kEventFaceRecID_DelUser:
-        {
-            if (status == kEventStatus_Ok)
-            {
-                LOGD("[OASIS] Delete success");
-            }
-            else
-            {
-                LOGD("[OASIS] Delete with error:%d", status);
-            }
-        }
-        break;
-        case kEventFaceRecID_GetUserList:
-        {
-            user_info_event_t *usersInfo = (user_info_event_t *)response;
-            for (int index = 0; index < usersInfo->count; index++)
-            {
-                char savedStatus[10]       = {0};
-                face_user_info_t *userInfo = &(usersInfo->userInfo[index]);
-                coffee_attribute_t attr    = {0};
-                strcpy(savedStatus, userInfo->isSaved ? "Saved" : "Not saved");
-
-                if (s_pCoffeedbOps != NULL)
-                {
-                    s_pCoffeedbOps->getWithId(userInfo->id, &attr);
-                }
-
-                LOGD("[OASIS] %-10s - ID:%3d Name:%s Coffee:[%d,%d,%d]", savedStatus, userInfo->id, userInfo->name,
-                     attr.type, attr.size, attr.strength);
-            }
-        }
-        break;
-        case kEventFaceRecID_GetUserCount:
-        {
-            uint32_t count = *(uint32_t *)response;
-            LOGD("[OASIS] Registered user count %d", count);
-        }
-        break;
-
-        default:
-            break;
-    }
-
-    return 0;
-}
-
-static inline void _oasis_dev_response(event_base_t eventBase,
-                                       void *response,
-                                       event_status_t status,
-                                       unsigned char isFinished)
-{
-    _HalEventsHandler(eventBase.eventId, response, status, isFinished);
-}
-
 static int _oasis_log(const char *formatString)
 {
-    // todo
     // OASIS_LOGE("%s", formatString);
     return 0;
 }
@@ -258,7 +189,7 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
 
                 case OASIS_QUALITY_RESULT_FACE_ORIENTATION_UNMATCH:
                 {
-                    result->qualityCheck  = kOasisLiteQualityCheck_NonFrontalFace;
+                    result->qualityCheck  = kOasisLiteQualityCheck_SideFace;
                     debugInfo->isSideFace = 1;
                     OASIS_LOGD("[OASIS] Quality:Side face[%d]", para->reserved[2]);
                 }
@@ -276,6 +207,13 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
                 case OASIS_QUALITY_RESULT_FAIL_BRIGHTNESS_OVEREXPOSURE:
                 {
                     OASIS_LOGD("[OASIS] Quality:Face Brightness unfit[%d]", para->reserved[12]);
+                }
+                break;
+				
+				case OASIS_QUALITY_RESULT_PARTIAL_BRIGHTNESS_FAIL:
+                {
+                    result->qualityCheck     = kOasisLiteQualityCheck_Brightness;
+                    OASIS_LOGD("[OASIS] Quality:Face Partial Brightness unfit lrsim[%d], uddiff[%d]", para->reserved[18], para->reserved[19]);
                 }
                 break;
 
@@ -373,20 +311,6 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
                         {
                             char *faceName = s_pFacedbOps->getNameWithId(id);
                             strcpy(result->name, faceName);
-                        }
-
-                        if (s_pCoffeedbOps != NULL)
-                        {
-                            coffee_attribute_t attr;
-                            coffee_result_t *pCoffeeResult = (coffee_result_t *)result->userData;
-
-                            s_pCoffeedbOps->getWithId(id, &attr);
-                            pCoffeeResult->coffeeType     = attr.type;
-                            pCoffeeResult->coffeeSize     = attr.size;
-                            pCoffeeResult->coffeeStrength = attr.strength;
-
-                            LOGD("[OASIS] Known user[%d][%s] Coffee:[%d,%d,%d]", id, result->name,
-                                 pCoffeeResult->coffeeType, pCoffeeResult->coffeeSize, pCoffeeResult->coffeeStrength);
                         }
 
                         s_faceId = id;
@@ -498,9 +422,9 @@ static int _oasis_delFace(uint16_t faceId, void *userData)
         if (s_pFacedbOps != NULL)
         {
             // TODO: Temporary workaround. Remove this once name is returned in oasisLite library as part of dereg event
-            if (s_OasisCoffeeMachine.result.oasisLite.state == kOASISLiteState_DeRegistration)
+            if (s_OasisHomePanel.result.oasisLite.state == kOASISLiteState_DeRegistration)
             {
-                strcpy(s_OasisCoffeeMachine.result.oasisLite.name, s_pFacedbOps->getNameWithId(faceId));
+                strcpy(s_OasisHomePanel.result.oasisLite.name, s_pFacedbOps->getNameWithId(faceId));
             }
 
             facedb_status_t status = s_pFacedbOps->delFaceWithId(faceId);
@@ -566,7 +490,7 @@ static void _oasis_start_registration(oasis_param_t *pParam)
     pParam->result.oasisLite.state   = kOASISLiteState_Registration;
     pParam->result.oasisLite.face_id = -1;
 
-    _oasis_dev_notifyResult(s_OasisCoffeeMachine.dev, &(pParam->result));
+    _oasis_dev_notifyResult(s_OasisHomePanel.dev, &(pParam->result));
 }
 
 static void _oasis_start_deregistration(oasis_param_t *pParam)
@@ -594,9 +518,9 @@ static oasis_status_t _oasis_start(const vision_algo_dev_t *receiver)
     if (s_blockingList == 0)
     {
         _oasis_dev_requestFrame(receiver);
-        s_OasisCoffeeMachine.currRunFlag = s_OasisCoffeeMachine.prevRunFlag;
-        s_OasisCoffeeMachine.prevRunFlag = OASIS_RUN_FLAG_STOP;
-        _oasis_start_registration(&s_OasisCoffeeMachine);
+        s_OasisHomePanel.currRunFlag = s_OasisHomePanel.prevRunFlag;
+        s_OasisHomePanel.prevRunFlag = OASIS_RUN_FLAG_STOP;
+        _oasis_start_registration(&s_OasisHomePanel);
 
         return kOasis_Success;
     }
@@ -610,12 +534,12 @@ static void _oasis_stop()
 {
     LOGD("[OASIS] Stop");
 
-    s_OasisCoffeeMachine.prevRunFlag = s_OasisCoffeeMachine.currRunFlag;
-    s_OasisCoffeeMachine.currRunFlag = OASIS_RUN_FLAG_STOP;
+    s_OasisHomePanel.prevRunFlag = s_OasisHomePanel.currRunFlag;
+    s_OasisHomePanel.currRunFlag = OASIS_RUN_FLAG_STOP;
 
-    memset(&s_OasisCoffeeMachine.result, 0, sizeof(s_OasisCoffeeMachine.result));
-    s_OasisCoffeeMachine.result.id = kVisionAlgoID_OasisLite;
-    //_oasis_dev_notifyResult(s_OasisCoffeeMachine.dev, &(s_OasisCoffeeMachine.result));
+    memset(&s_OasisHomePanel.result, 0, sizeof(s_OasisHomePanel.result));
+    s_OasisHomePanel.result.id = kVisionAlgoID_OasisLite;
+    //_oasis_dev_notifyResult(s_OasisHomePanel.dev, &(s_OasisHomePanel.result));
 }
 
 static void _oasis_dev_led_pwm_control(const vision_algo_dev_t *dev, event_common_t *event)
@@ -634,8 +558,11 @@ static void _oasis_dev_led_pwm_control(const vision_algo_dev_t *dev, event_commo
 static void _oasis_dev_camera_exposure_control(const vision_algo_dev_t *dev, event_common_t *event)
 {
     /* Build Valgo event */
-    valgo_event_t valgo_event = {
-        .eventId = kVAlgoEvent_VisionCamExpControl, .eventInfo = kEventInfo_Remote, .data = event, .size = sizeof(event_common_t), .copy = 1};
+    valgo_event_t valgo_event = {.eventId   = kVAlgoEvent_VisionCamExpControl,
+                                 .eventInfo = kEventInfo_Remote,
+                                 .data      = event,
+                                 .size      = sizeof(event_common_t),
+                                 .copy      = 1};
 
     if (dev != NULL && event != NULL && dev->cap.callback != NULL)
     {
@@ -650,17 +577,17 @@ static void _oasis_resetBrightness(void)
     event_common_t eventIRLed;
     eventIRLed.brightnessControl.enable = false;
     eventIRLed.eventBase.eventId        = kEventID_ControlIRLedBrightness;
-    _oasis_dev_led_pwm_control(s_OasisCoffeeMachine.dev, &eventIRLed);
+    _oasis_dev_led_pwm_control(s_OasisHomePanel.dev, &eventIRLed);
 
     event_common_t eventWhiteLed;
     eventWhiteLed.brightnessControl.enable = false;
     eventWhiteLed.eventBase.eventId        = kEventID_ControlWhiteLedBrightness;
-    _oasis_dev_led_pwm_control(s_OasisCoffeeMachine.dev, &eventWhiteLed);
+    _oasis_dev_led_pwm_control(s_OasisHomePanel.dev, &eventWhiteLed);
 
     event_common_t eventRGBCam;
     eventRGBCam.brightnessControl.enable = false;
     eventRGBCam.eventBase.eventId        = kEventID_ControlRGBCamExposure;
-    _oasis_dev_camera_exposure_control(s_OasisCoffeeMachine.dev, &eventRGBCam);
+    _oasis_dev_camera_exposure_control(s_OasisHomePanel.dev, &eventRGBCam);
 
     LOGD("Set to default pwm and/or exposure when processing is finished or timeout.");
 #endif
@@ -679,7 +606,7 @@ static void _oasis_adjustBrightness(uint8_t frameIdx, uint8_t direction, void *u
     eventCamExposure.brightnessControl.enable    = true;
     eventCamExposure.brightnessControl.direction = direction;
     eventCamExposure.eventBase.eventId           = kEventID_ControlRGBCamExposure;
-    _oasis_dev_camera_exposure_control(s_OasisCoffeeMachine.dev, &eventCamExposure);
+    _oasis_dev_camera_exposure_control(s_OasisHomePanel.dev, &eventCamExposure);
 
     OASIS_LOGV("--_oasis_adjustBrightness");
 }
@@ -703,15 +630,15 @@ static void _process_inference_result(oasis_param_t *pParam)
     }
 }
 
-static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Init(vision_algo_dev_t *dev,
+static hal_valgo_status_t HAL_VisionAlgoDev_OasisHomePanel_Init(vision_algo_dev_t *dev,
                                                                     valgo_dev_callback_t callback,
                                                                     void *param)
 {
     hal_valgo_status_t ret = kStatus_HAL_ValgoSuccess;
-    OASIS_LOGI("++HAL_VisionAlgoDev_OasisCoffeeMachine_Init");
+    OASIS_LOGI("++HAL_VisionAlgoDev_OasisHomePanel_Init");
     OASISLTResult_t oasisRet = OASISLT_OK;
 
-    s_OasisCoffeeMachine.dev = dev;
+    s_OasisHomePanel.dev = dev;
 
     // init the device
     memset(&dev->cap, 0, sizeof(dev->cap));
@@ -729,60 +656,52 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Init(vision_algo_
     dev->data.frames[kVAlgoFrameID_RGB].data         = s_OasisRgbFrameBuffer;
 
     // init the RGB frame
-    s_OasisCoffeeMachine.frames[OASISLT_INT_FRAME_IDX_RGB].height = OASIS_RGB_FRAME_HEIGHT;
-    s_OasisCoffeeMachine.frames[OASISLT_INT_FRAME_IDX_RGB].width  = OASIS_RGB_FRAME_WIDTH;
-    s_OasisCoffeeMachine.frames[OASISLT_INT_FRAME_IDX_RGB].fmt    = OASIS_IMG_FORMAT_BGR888;
-    s_OasisCoffeeMachine.frames[OASISLT_INT_FRAME_IDX_RGB].data   = dev->data.frames[kVAlgoFrameID_RGB].data;
-    s_OasisCoffeeMachine.pframes[OASISLT_INT_FRAME_IDX_RGB] = &s_OasisCoffeeMachine.frames[OASISLT_INT_FRAME_IDX_RGB];
+    s_OasisHomePanel.frames[OASISLT_INT_FRAME_IDX_RGB].height = OASIS_RGB_FRAME_HEIGHT;
+    s_OasisHomePanel.frames[OASISLT_INT_FRAME_IDX_RGB].width  = OASIS_RGB_FRAME_WIDTH;
+    s_OasisHomePanel.frames[OASISLT_INT_FRAME_IDX_RGB].fmt    = OASIS_IMG_FORMAT_BGR888;
+    s_OasisHomePanel.frames[OASISLT_INT_FRAME_IDX_RGB].data   = dev->data.frames[kVAlgoFrameID_RGB].data;
+    s_OasisHomePanel.pframes[OASISLT_INT_FRAME_IDX_RGB] = &s_OasisHomePanel.frames[OASISLT_INT_FRAME_IDX_RGB];
 
     // init the oasis config
-    s_OasisCoffeeMachine.config.imgType              = OASIS_IMG_TYPE_RGB_SINGLE;
-    s_OasisCoffeeMachine.config.minFace              = OASIS_DETECT_MIN_FACE;
-    s_OasisCoffeeMachine.config.cbs.EvtCb            = _oasis_evtCb;
-    s_OasisCoffeeMachine.config.cbs.GetFaces         = _oasis_getFace;
-    s_OasisCoffeeMachine.config.cbs.AddFace          = _oasis_addFace;
-    s_OasisCoffeeMachine.config.cbs.UpdateFace       = _oasis_updFace;
-    s_OasisCoffeeMachine.config.cbs.DeleteFace       = _oasis_delFace;
-    s_OasisCoffeeMachine.config.cbs.AdjustBrightness = _oasis_adjustBrightness;
-    s_OasisCoffeeMachine.config.cbs.reserved         = _oasis_log;
+    s_OasisHomePanel.config.imgType              = OASIS_IMG_TYPE_RGB_SINGLE;
+    s_OasisHomePanel.config.minFace              = OASIS_DETECT_MIN_FACE;
+    s_OasisHomePanel.config.cbs.EvtCb            = _oasis_evtCb;
+    s_OasisHomePanel.config.cbs.GetFaces         = _oasis_getFace;
+    s_OasisHomePanel.config.cbs.AddFace          = _oasis_addFace;
+    s_OasisHomePanel.config.cbs.UpdateFace       = _oasis_updFace;
+    s_OasisHomePanel.config.cbs.DeleteFace       = _oasis_delFace;
+    s_OasisHomePanel.config.cbs.AdjustBrightness = _oasis_adjustBrightness;
+    s_OasisHomePanel.config.cbs.reserved         = _oasis_log;
 
-    s_OasisCoffeeMachine.config.enableFlags                 = OASIS_ENABLE_LIVENESS;
-    s_OasisCoffeeMachine.config.falseAcceptRate             = OASIS_FAR_1_1000000;
-    s_OasisCoffeeMachine.config.height                      = OASIS_RGB_FRAME_HEIGHT;
-    s_OasisCoffeeMachine.config.width                       = OASIS_RGB_FRAME_WIDTH;
-    s_OasisCoffeeMachine.config.size                        = 0;
-    s_OasisCoffeeMachine.config.memPool                     = NULL;
-    s_OasisCoffeeMachine.config.fastMemSize                 = DTC_OPTIMIZE_BUFFER_SIZE;
-    s_OasisCoffeeMachine.config.fastMemBuf                  = (char *)s_DTCOPBuf;
-    s_OasisCoffeeMachine.config.runtimePara.brightnessTH[0] = 50;
-    s_OasisCoffeeMachine.config.runtimePara.brightnessTH[1] = 150;
-    s_OasisCoffeeMachine.config.runtimePara.frontTH         = 0.5;
+    s_OasisHomePanel.config.enableFlags                 = OASIS_ENABLE_LIVENESS;
+    s_OasisHomePanel.config.falseAcceptRate             = OASIS_FAR_1_1000000;
+    s_OasisHomePanel.config.height                      = OASIS_RGB_FRAME_HEIGHT;
+    s_OasisHomePanel.config.width                       = OASIS_RGB_FRAME_WIDTH;
+    s_OasisHomePanel.config.size                        = 0;
+    s_OasisHomePanel.config.memPool                     = NULL;
+    s_OasisHomePanel.config.fastMemSize                 = DTC_OPTIMIZE_BUFFER_SIZE;
+    s_OasisHomePanel.config.fastMemBuf                  = (char *)g_DTCOPBuf;
+    s_OasisHomePanel.config.runtimePara.brightnessTH[0] = 50;
+    s_OasisHomePanel.config.runtimePara.brightnessTH[1] = 180;
+    s_OasisHomePanel.config.runtimePara.frontTH         = 0.5;
 
-    oasisRet = OASISLT_init(&s_OasisCoffeeMachine.config);
+    oasisRet = OASISLT_init(&s_OasisHomePanel.config);
     if (oasisRet == OASIS_INIT_INVALID_MEMORYPOOL)
     {
 #if OASIS_STATIC_MEM_BUFFER
-        if (OASIS_STATIC_MEM_POOL >= s_OasisCoffeeMachine.config.size)
+        if (OASIS_STATIC_MEM_POOL >= s_OasisHomePanel.config.size)
         {
-            s_OasisCoffeeMachine.config.memPool = (char *)g_OasisMemPool;
+            s_OasisHomePanel.config.memPool = (char *)g_OasisMemPool;
         }
         else
         {
-            s_OasisCoffeeMachine.config.memPool = NULL;
+            s_OasisHomePanel.config.memPool = NULL;
         }
 #else
-        s_OasisCoffeeMachine.config.memPool = (char *)pvPortMalloc(s_OasisCoffeeMachine.config.size);
+        s_OasisHomePanel.config.memPool = (char *)pvPortMalloc(s_OasisHomePanel.config.size);
 #endif
-        OASIS_LOGD("[OASIS] OASIS LITE MEM POOL %d", s_OasisCoffeeMachine.config.size);
-
-        if (s_OasisCoffeeMachine.config.memPool == NULL)
-        {
-            OASIS_LOGE("Unable to allocate memory for OASIS mem pool of size %d.", s_OasisCoffeeMachine.config.size);
-            while (1)
-                ;
-        }
-
-        oasisRet = OASISLT_init(&s_OasisCoffeeMachine.config);
+        OASIS_LOGD("[OASIS] OASIS LITE MEM POOL %d", s_OasisHomePanel.config.size);
+        oasisRet = OASISLT_init(&s_OasisHomePanel.config);
     }
 
     if (oasisRet != OASISLT_OK)
@@ -795,13 +714,13 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Init(vision_algo_
     /* Initial Oasis status */
     if (dev->data.autoStart)
     {
-        s_OasisCoffeeMachine.currRunFlag = OASIS_DET_REC_REG;
+        s_OasisHomePanel.currRunFlag = OASIS_DET_REC_REG;
     }
     else
     {
-        s_OasisCoffeeMachine.currRunFlag = OASIS_RUN_FLAG_STOP;
+        s_OasisHomePanel.currRunFlag = OASIS_RUN_FLAG_STOP;
     }
-    s_OasisCoffeeMachine.prevRunFlag = OASIS_DET_REC_REG;
+    s_OasisHomePanel.prevRunFlag = OASIS_DET_REC_REG;
 
 #ifdef ENABLE_FACEDB
     /* Initial Face Database */
@@ -818,58 +737,46 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Init(vision_algo_
     }
 #endif
 
-    if (s_pCoffeedbOps == NULL)
-    {
-        s_pCoffeedbOps           = &g_coffedb_ops;
-        coffeedb_status_t status = s_pCoffeedbOps->init();
-        if (kCoffeeDBStatus_Success != status)
-        {
-            OASIS_LOGE("[OASIS] CoffeeDb initial failed");
-            ret = kStatus_HAL_ValgoInitError;
-            return ret;
-        }
-    }
-
     s_pFaceFeature = pvPortMalloc(OASISLT_getFaceItemSize());
     if (s_pFaceFeature == NULL)
     {
         OASIS_LOGE("[OASIS] Unable to allocate memory for face feature.");
     }
 
-    _oasis_start_registration(&s_OasisCoffeeMachine);
+    _oasis_start_registration(&s_OasisHomePanel);
 
     OASIS_LOGD("[OASIS]:Init ok");
-    OASIS_LOGI("--HAL_VisionAlgoDev_OasisCoffeeMachine_Init");
+    OASIS_LOGI("--HAL_VisionAlgoDev_OasisHomePanel_Init");
     return ret;
 }
 
 // deinitialize the dev
-static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Deinit(vision_algo_dev_t *dev)
+static hal_valgo_status_t HAL_VisionAlgoDev_OasisHomePanel_Deinit(vision_algo_dev_t *dev)
 {
     hal_valgo_status_t ret = kStatus_HAL_ValgoSuccess;
-    LOGI("++HAL_VisionAlgoDev_OasisCoffeeMachine_Deinit");
+    LOGI("++HAL_VisionAlgoDev_OasisHomePanel_Deinit");
 
-    LOGI("--HAL_VisionAlgoDev_OasisCoffeeMachine_Deinit");
+    LOGI("--HAL_VisionAlgoDev_OasisHomePanel_Deinit");
     return ret;
 }
 
 // start the dev
-static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Run(const vision_algo_dev_t *dev, void *data)
+static hal_valgo_status_t HAL_VisionAlgoDev_OasisHomePanel_Run(const vision_algo_dev_t *dev, void *data)
 {
     hal_valgo_status_t ret = kStatus_HAL_ValgoSuccess;
-    OASIS_LOGV("++HAL_VisionAlgoDev_OasisCoffeeMachine_Run: %d", s_OasisCoffeeMachine.currRunFlag);
+    OASIS_LOGV("++HAL_VisionAlgoDev_OasisHomePanel_Run: %d", s_OasisHomePanel.currRunFlag);
 
-    if (s_OasisCoffeeMachine.currRunFlag != OASIS_RUN_FLAG_NUM &&
-        s_OasisCoffeeMachine.currRunFlag != OASIS_RUN_FLAG_STOP)
+    if (s_OasisHomePanel.currRunFlag != OASIS_RUN_FLAG_NUM &&
+        s_OasisHomePanel.currRunFlag != OASIS_RUN_FLAG_STOP)
     {
         // clear the result
-        memset(&s_OasisCoffeeMachine.result, 0, sizeof(s_OasisCoffeeMachine.result));
-        s_OasisCoffeeMachine.result.id = kVisionAlgoID_OasisLite;
+        memset(&s_OasisHomePanel.result, 0, sizeof(s_OasisHomePanel.result));
+        s_OasisHomePanel.result.id = kVisionAlgoID_OasisLite;
 
         FWK_Profiler_ClearEvents();
 
-        int oasis_ret = OASISLT_run_extend(s_OasisCoffeeMachine.pframes, s_OasisCoffeeMachine.currRunFlag,
-                                           s_OasisCoffeeMachine.config.minFace, &s_OasisCoffeeMachine);
+        int oasis_ret = OASISLT_run_extend(s_OasisHomePanel.pframes, s_OasisHomePanel.currRunFlag,
+                                           s_OasisHomePanel.config.minFace, &s_OasisHomePanel);
         if (oasis_ret)
         {
             OASIS_LOGE("OASISLT_run_extend failed with error: %d", oasis_ret);
@@ -878,22 +785,23 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Run(const vision_
         FWK_Profiler_Log();
 
         /* Take decision regarding the inference results */
-        _process_inference_result(&s_OasisCoffeeMachine);
+        _process_inference_result(&s_OasisHomePanel);
     }
 
-    if (s_OasisCoffeeMachine.currRunFlag == OASIS_RUN_FLAG_STOP)
+    if (s_OasisHomePanel.currRunFlag == OASIS_RUN_FLAG_STOP)
     {
         return kStatus_HAL_ValgoStop;
     }
-    OASIS_LOGI("--HAL_VisionAlgoDev_OasisCoffeeMachine_Run");
+    OASIS_LOGI("--HAL_VisionAlgoDev_OasisHomePanel_Run");
     return ret;
 }
 
-static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify(const vision_algo_dev_t *receiver,
+static hal_valgo_status_t HAL_VisionAlgoDev_OasisHomePanel_InputNotify(const vision_algo_dev_t *receiver,
                                                                            void *data)
 {
     hal_valgo_status_t ret = kStatus_HAL_ValgoSuccess;
-    OASIS_LOGI("++HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify");
+    OASIS_LOGI("++HAL_VisionAlgoDev_OasisHomePanel_InputNotify");
+
 
     if (s_pFacedbOps == NULL)
     {
@@ -904,63 +812,44 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify(const
     event_base_t eventBase = *(event_base_t *)data;
     switch (eventBase.eventId)
     {
-        case kEventFaceRecId_RegisterCoffeeSelection:
+        case kEventFaceRecID_OasisGetState:
         {
-            event_smart_tlhmi_t *pEvent = (event_smart_tlhmi_t *)data;
-            LOGD("[OASIS] Register new user[%d]'s coffee:[%d, %d, %d]", pEvent->regCoffeeSelection.id,
-                 pEvent->regCoffeeSelection.coffeeType, pEvent->regCoffeeSelection.coffeeSize,
-                 pEvent->regCoffeeSelection.coffeeStrength);
-            if (s_faceId != -1)
+            if (s_OasisHomePanel.currRunFlag == OASIS_RUN_FLAG_STOP)
             {
-                if (s_pFacedbOps != NULL)
-                {
-                    if (pEvent->regCoffeeSelection.id < 0)
-                    {
-                        // register new user
-                        facedb_status_t status =
-                            s_pFacedbOps->addFace(s_faceId, NULL, s_pFaceFeature, OASISLT_getFaceItemSize());
-                        if (status == kFaceDBStatus_Success)
-                        {
-                            memset(s_pFaceFeature, 0x0, OASISLT_getFaceItemSize());
-                        }
-                    }
-                }
-
-                if (s_pCoffeedbOps != NULL)
-                {
-                    coffee_attribute_t attr = {
-                        .id       = s_faceId,
-                        .type     = pEvent->regCoffeeSelection.coffeeType,
-                        .size     = pEvent->regCoffeeSelection.coffeeSize,
-                        .strength = pEvent->regCoffeeSelection.coffeeStrength,
-                    };
-
-                    if (pEvent->regCoffeeSelection.id < 0)
-                    {
-                        // register new user
-                        coffeedb_status_t status = s_pCoffeedbOps->addWithId(s_faceId, &attr);
-                        if (kCoffeeDBStatus_Success != status)
-                        {
-                            LOGD("[OASIS] Add coffee selection %d failed", s_faceId);
-                        }
-                    }
-                    else
-                    {
-                        // update user's new selection
-                        attr.id                  = pEvent->regCoffeeSelection.id;
-                        coffeedb_status_t status = s_pCoffeedbOps->updWithId(s_faceId, &attr);
-                        if (kCoffeeDBStatus_Success != status)
-                        {
-                            LOGD("[OASIS] Update coffee selection %d failed", s_faceId);
-                        }
-                    }
-                }
-
-                s_faceId = -1;
+                LOGD("[OASIS] stop.");
+            }
+            else
+            {
+                LOGD("[OASIS] running.");
             }
         }
         break;
 
+        case kEventFaceRecID_OasisSetState:
+        {
+            event_face_rec_t eventOasis = *(event_face_rec_t *)data;
+
+            LOGD("[OASIS] set state [%d]", eventOasis.oasisState.state);
+            if (eventOasis.oasisState.state == kOasisState_Stopped)
+            {
+                /* ignore if already stopped */
+                if (s_OasisHomePanel.currRunFlag != OASIS_RUN_FLAG_STOP)
+                {
+                    /* stop the oasis */
+                    _oasis_stop();
+                }
+            }
+            else if (eventOasis.oasisState.state == kOasisState_Running)
+            {
+                /* ignore if already started */
+                if (s_OasisHomePanel.currRunFlag == OASIS_RUN_FLAG_STOP)
+                {
+                    _oasis_start(receiver);
+                }
+            }
+        }
+        break;
+#if 0
         case kEventFaceRecID_DelUserAll:
         {
             event_face_rec_t event              = *(event_face_rec_t *)data;
@@ -969,14 +858,6 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify(const
             if (s_pFacedbOps != NULL)
             {
                 if (s_pFacedbOps->delFaceWithId(INVALID_FACE_ID) != kFaceDBStatus_Success)
-                {
-                    event_respond_status = kEventStatus_Error;
-                }
-            }
-
-            if (s_pCoffeedbOps != NULL)
-            {
-                if (s_pCoffeedbOps->delWithId(INVALID_FACE_ID) != kCoffeeDBStatus_Success)
                 {
                     event_respond_status = kEventStatus_Error;
                 }
@@ -996,14 +877,6 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify(const
                 if (s_pFacedbOps != NULL)
                 {
                     if (s_pFacedbOps->delFaceWithId(event.delFace.id) != kFaceDBStatus_Success)
-                    {
-                        event_respond_status = kEventStatus_Error;
-                    }
-                }
-
-                if (s_pCoffeedbOps != NULL)
-                {
-                    if (s_pCoffeedbOps->delWithId(event.delFace.id) != kCoffeeDBStatus_Success)
                     {
                         event_respond_status = kEventStatus_Error;
                     }
@@ -1030,13 +903,6 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify(const
                     }
                 }
 
-                if (s_pCoffeedbOps != NULL && id != INVALID_ID)
-                {
-                    if (s_pCoffeedbOps->delWithId(id) != kCoffeeDBStatus_Success)
-                    {
-                        event_respond_status = kEventStatus_Error;
-                    }
-                }
                 _oasis_dev_response(eventBase, &event.delFace, event_respond_status, true);
             }
             else
@@ -1051,15 +917,6 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify(const
                         if (status != kFaceDBStatus_Success)
                         {
                             LOGD("[OASIS] Del user %d failed", s_faceId);
-                        }
-                    }
-
-                    if (s_pCoffeedbOps != NULL)
-                    {
-                        coffeedb_status_t status = s_pCoffeedbOps->delWithId(s_faceId);
-                        if (kCoffeeDBStatus_Success != status)
-                        {
-                            LOGD("[OASIS] Del user[%d]'s coffee selection failed", s_faceId);
                         }
                     }
 
@@ -1131,109 +988,35 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify(const
             _oasis_dev_response(eventBase, &event.updateFace, eventRespondStatus, true);
         }
         break;
-
-        case kEventFaceRecID_OasisGetState:
-        {
-            event_face_rec_t oasisEvent;
-            if (s_OasisCoffeeMachine.currRunFlag == OASIS_RUN_FLAG_STOP)
-            {
-                oasisEvent.oasisState.state = kOasisState_Stopped;
-            }
-            else
-            {
-                oasisEvent.oasisState.state = kOasisState_Running;
-            }
-
-            LOGI("[OASIS] get oasis state %d", oasisEvent.oasisState.state);
-            _oasis_dev_response(eventBase, &oasisEvent, kEventStatus_Ok, true);
-        }
-        break;
-
-        case kEventFaceRecID_OasisSetState:
-        {
-            event_face_rec_t eventOasis, oasisResponse;
-            eventOasis = *(event_face_rec_t *)data;
-
-            LOGD("[OASIS] Set state [%d]", eventOasis.oasisState.state);
-            if (eventOasis.oasisState.state == kOasisState_Stopped)
-            {
-                oasisResponse.oasisState.state = kOasisState_Stopped;
-
-                _set_blocker_bit(kOasisBlockingList_UserInput);
-
-                /* ignore if already stopped */
-                if (s_OasisCoffeeMachine.currRunFlag != OASIS_RUN_FLAG_STOP)
-                {
-                    /* stop the oasis */
-                    _oasis_stop();
-                    _oasis_dev_response(eventBase, &oasisResponse, kEventStatus_Ok, true);
-                }
-                else
-                {
-                    /* send a message that it's already stopped */
-                    _oasis_dev_response(eventBase, &oasisResponse, kEventStatus_Error, true);
-                }
-            }
-            else if (eventOasis.oasisState.state == kOasisState_Running)
-            {
-                oasisResponse.oasisState.state = kOasisState_Running;
-
-                /* ignore if already started */
-                if (s_OasisCoffeeMachine.currRunFlag == OASIS_RUN_FLAG_STOP)
-                {
-                    /* start the oasis */
-                    _clear_blocker_bit(kOasisBlockingList_UserInput);
-                    oasis_status_t status = _oasis_start(receiver);
-                    if (status == kOasis_Failed)
-                    {
-                        oasisResponse.oasisState.state = kOasisState_Stopped;
-                        _oasis_dev_response(eventBase, &oasisResponse, kEventStatus_Error, true);
-                    }
-                    else
-                    {
-                        /* Toggle bit only on success */
-                        _oasis_dev_response(eventBase, &oasisResponse, kEventStatus_Ok, true);
-                    }
-                }
-                else
-                {
-                    /* send a message that it's already running */
-                    _oasis_dev_response(eventBase, &oasisResponse, kEventStatus_Error, true);
-                }
-            }
-        }
-        break;
+#endif
 
         default:
             break;
     }
 
-    OASIS_LOGI("--HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify");
+    OASIS_LOGI("--HAL_VisionAlgoDev_OasisHomePanel_InputNotify");
     return ret;
 }
 
-const static vision_algo_dev_operator_t s_VisionAlgoDev_OasisCoffeeMachineOps = {
-    .init        = HAL_VisionAlgoDev_OasisCoffeeMachine_Init,
-    .deinit      = HAL_VisionAlgoDev_OasisCoffeeMachine_Deinit,
-    .run         = HAL_VisionAlgoDev_OasisCoffeeMachine_Run,
-    .inputNotify = HAL_VisionAlgoDev_OasisCoffeeMachine_InputNotify,
+const static vision_algo_dev_operator_t s_VisionAlgoDev_OasisHomePanelOps = {
+    .init        = HAL_VisionAlgoDev_OasisHomePanel_Init,
+    .deinit      = HAL_VisionAlgoDev_OasisHomePanel_Deinit,
+    .run         = HAL_VisionAlgoDev_OasisHomePanel_Run,
+    .inputNotify = HAL_VisionAlgoDev_OasisHomePanel_InputNotify,
 };
 
-static vision_algo_dev_t s_VisionAlgoDev_OasisCoffeeMachine = {
+static vision_algo_dev_t s_VisionAlgoDev_OasisHomePanel = {
     .id   = 0,
     .name = "CoffeeMachine",
-    .ops  = (vision_algo_dev_operator_t *)&s_VisionAlgoDev_OasisCoffeeMachineOps,
+    .ops  = (vision_algo_dev_operator_t *)&s_VisionAlgoDev_OasisHomePanelOps,
     .cap  = {.param = NULL},
 };
 
-// for vision_algo_oasis_coffeemachine device, please link oasis/liboasis_lite2D_DEFAULT_117f_ae.a
-int HAL_VisionAlgoDev_OasisCoffeeMachine_Register(int mode) // mode=0 smartlock; mode=1 ffi
+int HAL_VisionAlgoDev_OasisHomePanel_Register()
 {
     int error = 0;
-    LOGD("HAL_VisionAlgoDev_OasisCoffeeMachine_Register");
-    error = FWK_VisionAlgoManager_DeviceRegister(&s_VisionAlgoDev_OasisCoffeeMachine);
-    memset(&s_OasisCoffeeMachine, 0, sizeof(s_OasisCoffeeMachine));
-    s_OasisCoffeeMachine.mode = mode;
+    LOGD("HAL_VisionAlgoDev_OasisHomePanel_Register");
+    error = FWK_VisionAlgoManager_DeviceRegister(&s_VisionAlgoDev_OasisHomePanel);
     return error;
 }
-#endif /* ENABLE_VISIONALGO_DEV_OasisCoffeeMachine */
+#endif /* ENABLE_VISIONALGO_DEV_OasisHomePanel */

@@ -12,7 +12,7 @@
 #include "sln_flash.h"
 #include "FreeRTOSConfig.h"
 #include "FreeRTOS.h"
-
+#include "task.h"
 #include "sln_auth.h"
 
 #define REVERSE_COPY     -1
@@ -20,6 +20,17 @@
 
 static fica_img_type_t s_preparedImgType = FICA_IMG_TYPE_NONE;
 static uint32_t s_fileSize               = 0;
+static update_monitor_cb s_UpdateMonitor = NULL;
+static uint8_t s_percent                 = 0;
+
+static void SLN_Update_AdvertiseStatus(updateStage updateStage, uint8_t stageUpdatePercent)
+{
+    if (s_UpdateMonitor != NULL)
+    {
+        s_UpdateMonitor(updateStage, stageUpdatePercent);
+    }
+    taskYIELD();
+}
 
 /**
  * @brief This function will populate img information from the FICA entry.
@@ -100,11 +111,7 @@ static status_t SLN_Update_MoveModuleData(uint32_t oldImgStartAddr, uint32_t new
     {
         if (sectionOverlap == false)
         {
-            configPRINTF(("[SLN_UPDATE] Sections are not overlaping. Do fast erase.\r\n"));
-            if (FICA_Erase_Bank(newImgStartAddr, imgSize) != SLN_FLASH_NO_ERROR)
-            {
-                status = kStatus_Fail;
-            }
+            configPRINTF(("[SLN_UPDATE] Sections are not overlaping.\r\n"));
         }
         else
         {
@@ -149,8 +156,10 @@ static status_t SLN_Update_MoveModuleData(uint32_t oldImgStartAddr, uint32_t new
 
     if (kStatus_Success == status)
     {
-        uint32_t tmpImgSize = imgSize;
-        uint32_t sumSize    = 0;
+        uint32_t fileSizeGranularity = imgSize / 100;
+        uint32_t tmpImgSize          = imgSize;
+        uint32_t sumSize             = 0;
+        configPRINTF(("[SLN_UPDATE] File size granularity %d", fileSizeGranularity));
 
         while (tmpImgSize)
         {
@@ -171,6 +180,10 @@ static status_t SLN_Update_MoveModuleData(uint32_t oldImgStartAddr, uint32_t new
             if (sectionOverlap)
             {
                 status |= SLN_Erase_Sector(newImgStartAddr + offset);
+            }
+            else if ((newImgStartAddr + offset) % FLASH_BLOCK_SIZE == 0)
+            {
+                status |= FICA_Erase_Bank((newImgStartAddr + offset), FLASH_BLOCK_SIZE);
             }
 
             if (kStatus_Success == status)
@@ -194,7 +207,16 @@ static status_t SLN_Update_MoveModuleData(uint32_t oldImgStartAddr, uint32_t new
 
             if (kStatus_Success == status)
             {
+                uint8_t new_percent;
+
                 tmpImgSize -= to_read;
+                new_percent = (imgSize - tmpImgSize) / fileSizeGranularity;
+
+                if (new_percent >= (s_percent + UPDATE_MONITOR_GRANULARITY))
+                {
+                    SLN_Update_AdvertiseStatus(UPDATE_PROCESSING, new_percent);
+                    s_percent = new_percent;
+                }
 
                 if ((sumSize >= FLASH_BLOCK_SIZE) || (tmpImgSize == 0))
                 {
@@ -555,7 +577,8 @@ status_t SLN_Update_PrepareImgBank(fica_img_type_t imgType, uint32_t size)
     status_t status    = kStatus_Success;
 
     flashError = FICA_initialize();
-
+    SLN_Update_AdvertiseStatus(UPDATE_DOWNLOAD, 0);
+    s_percent = 0;
     switch (imgType)
     {
         case FICA_IMG_TYPE_APP_A:
@@ -629,6 +652,10 @@ status_t SLN_Update_PrepareImgBank(fica_img_type_t imgType, uint32_t size)
         s_preparedImgType = imgType;
         s_fileSize        = size;
     }
+    else
+    {
+        SLN_Update_AdvertiseStatus(UPDATE_FINISH, status);
+    }
 
     return status;
 }
@@ -668,6 +695,21 @@ status_t SLN_Update_WriteImg(fica_img_type_t imgType, uint32_t offset, uint8_t *
         status = kStatus_Fail;
     }
 
+    if (status == kStatus_Success)
+    {
+        uint32_t fileSizeGranularity = s_fileSize / 100;
+        uint8_t new_percent          = offset / fileSizeGranularity;
+
+        if (new_percent >= (s_percent + UPDATE_MONITOR_GRANULARITY))
+        {
+            SLN_Update_AdvertiseStatus(UPDATE_DOWNLOAD, new_percent);
+            s_percent = new_percent;
+        }
+    }
+    else
+    {
+        SLN_Update_AdvertiseStatus(UPDATE_FINISH, status);
+    }
     return status;
 }
 
@@ -679,6 +721,8 @@ status_t SLN_Update_FinalizeUpdate(fica_img_type_t imgType, uint8_t *imgSig)
     uint32_t imgStartingAddr = 0;
     uint32_t imgSize         = 0;
 
+    SLN_Update_AdvertiseStatus(UPDATE_PROCESSING, 0);
+    s_percent   = 0;
     fica_status = FICA_app_program_ext_finalize();
     fica_status |= FICA_GetNewAppStartAddr(&imgStartingAddr);
     fica_status |= FICA_GetNewAppSize(&imgSize);
@@ -773,6 +817,9 @@ status_t SLN_Update_FinalizeUpdate(fica_img_type_t imgType, uint8_t *imgSig)
         status = kStatus_Fail;
     }
 
+    SLN_Update_AdvertiseStatus(UPDATE_FINISH, status);
+    s_percent = 0;
+
     return status;
 }
 
@@ -793,4 +840,12 @@ status_t SLN_Update_Rollback()
     }
 
     return status;
+}
+
+status_t SLN_Update_Init(update_monitor_cb cb)
+{
+    s_UpdateMonitor = cb;
+
+    SLN_Update_AdvertiseStatus(UPDATE_WAITING, 0);
+    return kStatus_Success;
 }

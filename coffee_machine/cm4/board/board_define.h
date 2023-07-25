@@ -22,6 +22,11 @@
 
 #define TARGET_BOARD BOARD_SMART_TLHMI
 
+/*
+ *  AQT test: set to 1 to run in AQT test mode.
+ */
+#define AQT_TEST 0
+
 #if TARGET_BOARD == BOARD_SMART_TLHMI
 /*
  * Enablement of the HAL devices
@@ -40,7 +45,9 @@
 #define ENABLE_OUTPUT_DEV_UiCoffeeMachine
 #define ENABLE_LPM_DEV_Standby
 #define ENABLE_INPUT_DEV_PushButtons
-//#define ENABLE_OUTPUT_DEV_AudioDump
+#if AQT_TEST
+#define ENABLE_OUTPUT_DEV_AudioDump
+#endif /* AQT_TEST */
 
 #define WIFI_ENABLED 1
 

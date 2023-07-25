@@ -1124,6 +1124,13 @@ static hal_output_status_t HAL_OutputDev_UiElevator_InferComplete(const output_d
     }
 
     LVGL_LOCK();
+
+#if AQT_TEST
+    if (source == kOutputAlgoSource_Voice)
+    {
+        _InferComplete_Voice(dev, inferResult);
+    }
+#else
     if (source == kOutputAlgoSource_Vision)
     {
         _InferComplete_Vision(dev, inferResult);
@@ -1132,6 +1139,8 @@ static hal_output_status_t HAL_OutputDev_UiElevator_InferComplete(const output_d
     {
         _InferComplete_Voice(dev, inferResult);
     }
+#endif /* AQT_TEST */
+
     LVGL_UNLOCK();
 
     return error;

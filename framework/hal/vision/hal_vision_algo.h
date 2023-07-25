@@ -31,7 +31,11 @@
 #error "***Invalid demo APP definition! Supported definition [SMART_LOCK_3D | SMART_LOCK_2D | SMART_ACCESS_2D]***"
 #endif
 
-#define OASIS_RUN_FLAG_STOP            (OASIS_RUN_FLAG_NUM + 1)
+#ifdef SMART_TLHMI_HOMEPANEL
+#include "uvita_gesture.h"
+#endif /* SMART_TLHMI_HOMEPANEL */
+
+#define OASIS_RUN_FLAG_STOP (OASIS_RUN_FLAG_NUM + 1)
 
 #define OASIS_DETECT_MIN_FACE 100
 #ifndef OASIS_STATIC_MEM_BUFFER
@@ -44,6 +48,9 @@
 
 /*dtc buffer for inference engine optimization*/
 #define DTC_OPTIMIZE_BUFFER_SIZE (128 * 1024)
+
+/*dtc buffer for inference engine optimization*/
+extern uint8_t g_DTCOPBuf[DTC_OPTIMIZE_BUFFER_SIZE];
 
 /*
  * Default face rec threshold value:
@@ -111,6 +118,7 @@ typedef enum _oasis_blocking_event_id
 {
     kOasisBlockingList_UserInput = 1,
     kOasisBlockingList_Record,
+    kOasisBlockingList_Gesture,
     kOasisBlockingList_Audio,
 
     kOasisBlockingList_COUNT
@@ -194,6 +202,13 @@ typedef struct _h264_result
     uint8_t *recordedDataAddress;
 } h264_result_t;
 
+typedef struct _gesture_result
+{
+#ifdef SMART_TLHMI_HOMEPANEL
+    uvita_hand_out hand;
+#endif
+} gesture_result_t;
+
 /*
  * H.264 Recording device
  */
@@ -201,6 +216,7 @@ typedef enum _vision_algo_id
 {
     kVisionAlgoID_OasisLite,
     kVisionAlgoID_H264Recording,
+    kVisionAlgoID_UvitaGesture,
     kVisionAlgoID_Count
 } vision_algo_id_t;
 
@@ -211,6 +227,7 @@ typedef struct _vision_algo_result
     {
         oasis_lite_result_t oasisLite;
         h264_result_t h264Recording;
+        gesture_result_t uvitaHandGesture;
     };
 } vision_algo_result_t;
 

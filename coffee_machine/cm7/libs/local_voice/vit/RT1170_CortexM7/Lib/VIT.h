@@ -27,15 +27,6 @@ extern "C" {
 /*                                                                                      */
 /****************************************************************************************/
 
-/*
-*     VITControlParams.OperatingMode vs VITInstParams.NumberOfChannel
-*              - VIT lib integrating AFE :
-*                       - AFE DISABLE : 1 MIC supported
-*                       - AFE ENABLE  : 2 or 3 MICs supported
-*              - VIT lib not integrating AFE :
-*                       - AFE DISABLE : 1 MIC supported
-*                       - AFE ENABLE  : invalid
-*/
 
 /****************************************************************************************/
 /*                                                                                      */
@@ -46,25 +37,13 @@ typedef enum { _1CHAN = 1, _2CHAN, _3CHAN} NumberOfChannel_en;
 
 /*****  Input audio (size, sampling rate, channel number)  *****/
 
-// Clarifications :
-//     - a SAMPLE can have 1, 2 or N channels (N defined by VIT_MAX_CHANNEL_NUMBER here after)
-//     - a FRAME is composed of multi-channel samples : 160 multi-channel samples in the VIT input buffer
-//       meaning that VIT_SAMPLES_PER_FRAME should be always 160 whatever the number of channels
-#define VIT_SAMPLES_PER_FRAME             160                 // corresponds to 10ms @16kHz
+// Clarifications : 
+//     - a SAMPLE can have 1, 2 or N channels (N defined by VIT_MAX_NUMBER_OF_CHANNEL here after)
+
+#define VIT_SAMPLES_PER_10MS_FRAME        160                 // corresponds to 10ms @16kHz
+#define VIT_SAMPLES_PER_30MS_FRAME        480                 // corresponds to 30ms @16kHz
 #define VIT_SAMPLE_RATE                   16000               // sample rate in Hz
-
-
-/*
- *  VIT lib not integrating AFE :
- *               - IMXRT1050          : VIT_MAX_NUMBER_OF_CHANNEL  = _1CHAN
- *               - IMXRT500           : VIT_MAX_NUMBER_OF_CHANNEL  = _1CHAN
- *               - IMX8MA53           : VIT_MAX_NUMBER_OF_CHANNEL  = _1CHAN
- *  VIT lib integrating AFE :
- *               - IMXRT1060          : VIT_MAX_NUMBER_OF_CHANNEL  = _3CHAN
- *               - IMXRT1160 / RT1170 : VIT_MAX_NUMBER_OF_CHANNEL  = _3CHAN
- *               - IMXRT600           : VIT_MAX_NUMBER_OF_CHANNEL  = _3CHAN
- */
-
+#define VIT_MAX_NUMBER_OF_CHANNEL         _1CHAN
 
 // Error type
 typedef enum
@@ -77,13 +56,18 @@ typedef enum
     VIT_INVALID_SAMPLE_RATE             = 5,                  ///< Sample rate not supported
     VIT_INVALID_FRAME_SIZE              = 6,                  ///< Frame size not supported
     VIT_INVALID_MODEL                   = 7,                  ///< Model not supported
-    VIT_INVALID_AFE_CONFIG              = 8,                  ///< wrong Audio Front End configuration
+    VIT_INVALID_API_VERSION             = 8,                  ///< wrong API version
     VIT_INVALID_STATE                   = 9,                  ///< State machine error
-    VIT_INVALID_DEVICE                  = 10,                 ///< VIT not running on expected Device
+    VIT_INVALID_DEVICE                  = 10,                 ///< VIT not running on expected Device 
     VIT_SYSTEM_ERROR                    = 11,                 ///< System error
     VIT_ERROR_UNDEFINED                 = 12,                 ///< Unknow error
     VIT_DUMMY_ERROR                     = PL_MAXENUM
 }VIT_ReturnStatus_en;
+
+
+#define VIT_API_VERSION_MAJOR 2
+#define VIT_API_VERSION_MINOR 0
+#define VIT_API_VERSION       ((VIT_API_VERSION_MAJOR<<16) | (VIT_API_VERSION_MINOR<<8))
 
 /****************************************************************************************/
 /*                                                                                      */
@@ -108,17 +92,16 @@ typedef void *VIT_Handle_t;   ///< VIT handle
 
 /* VIT Operating Mode
  *    Goal is mainly to control enablement of the different VIT features :
- *      Low power VAD, 2/3 Mics Audio Front-End, WakeWord and Voice commands
+ *      Low power VAD, WakeWord and Voice commands
  */
 typedef enum
 {
     VIT_ALL_MODULE_DISABLE        = 0,     // None module activated
     VIT_SPECIFIC_MODE_ENABLE      = 1,     // Reserved for specific VIT validation : not to be used
     VIT_LPVAD_ENABLE              = 2,     // Low power VAD module activated
-    VIT_AFE_ENABLE                = 4,     // Audio front-end module activated
-    VIT_WAKEWORD_ENABLE           = 8,     // Wake Word module activated
-    VIT_VOICECMD_ENABLE           = 16,    // Voice Commands module activated
-    VIT_ALL_MODULE_ENABLE         = VIT_LPVAD_ENABLE | VIT_AFE_ENABLE | VIT_WAKEWORD_ENABLE | VIT_VOICECMD_ENABLE, // LPVAD, AFE, Wake word and Voice commands activated
+    VIT_WAKEWORD_ENABLE           = 4,     // Wake Word module activated
+    VIT_VOICECMD_ENABLE           = 8,     // Voice Commands module activated
+    VIT_ALL_MODULE_ENABLE         = VIT_LPVAD_ENABLE | VIT_WAKEWORD_ENABLE | VIT_VOICECMD_ENABLE, // LPVAD, Wake word and Voice commands activated
     VIT_DUMMY_OPERATINGMODE       = PL_MAXENUM
 }VIT_OperatingMode_en;
 
@@ -148,13 +131,15 @@ typedef enum
     VIT_IMX8MMINIM4,                           // I.MX8MINI  : VIT running on Cortex-M4
     VIT_IMX8MPLUSM7,                           // I.MX8PLUS  : VIT running on Cortex-M7
     VIT_IMX8MA53,                              // I.MX8MA53  : VIT running on Cortex-A (i.MX8MPlus and i.MX8MMini)
-    VIT_NB_OF_DEVICES = VIT_IMX8MA53,
+    VIT_IMX9XA55,                              // I.MX9XA55  : VIT running on Cortex-A (i.MX9X)
+
+    VIT_NB_OF_DEVICES = VIT_IMX9XA55,
     VIT_DUMMY_DEVICE  = PL_MAXENUM
 }VIT_DeviceId_en;
 
 /* VIT Detection Status
  *    Status returned by VIT_Process() API.
- *    Indicates if the Wake Word or a Voice Command has been detected on the frame processed
+ *    Indicates if the Wake Word or a Voice Command has been detected on the frame processed 
  */
 typedef enum
 {
@@ -176,36 +161,28 @@ typedef struct
     NumberOfChannel_en           NumberOfChannel;             // Number of Channels
     PL_UINT16                    SamplesPerFrame;             // Number of input samples per frame
     VIT_DeviceId_en              DeviceId;                    // To specify on which device VIT is running
+    PL_UINT32                    APIVersion;
 } VIT_InstanceParams_st;
-
-/* Input Buffer structure */
-typedef struct
-{
-    const PL_INT16               *pBuffer_Chan1;       // Linked to MIC1 considered as the reference MIC for AFE
-    const PL_INT16               *pBuffer_Chan2;       // Linked to MIC2
-    const PL_INT16               *pBuffer_Chan3;       // Linked to MIC3
-} VIT_DataIn_st;
 
 /* Wakeword structure */
 typedef struct
 {
-    PL_UINT16                    WW_Id;
-    const char                   *pWW_Name;
+    PL_UINT16                    Id;
+    const char                   *pName;
+    PL_UINT32                    StartOffset;                 // in samples
 } VIT_WakeWord_st;
 
 /* Voice Command structure */
 typedef struct
 {
-    PL_UINT16                    Cmd_Id;
-    const char                   *pCmd_Name;
+    PL_UINT16                    Id;
+    const char                   *pName;
 } VIT_VoiceCommand_st;
 
 /* Control Parameter structure */
 typedef struct
 {
     VIT_OperatingMode_en         OperatingMode;
-    PL_UINT16                    MIC1_MIC2_Distance;   // Distance between MIC2 and the reference MIC in mm
-    PL_UINT16                    MIC1_MIC3_Distance;   // Distance between MIC3 and the reference MIC in mm
     PL_FLOAT                     Command_Time_Span;    // Corresponding to the detection period in second for each command (Max allowed 8.0 seconds)
                                                        // VIT will return UNKNOWN if no command is recognized during this time span.
     PL_BOOL                      Feature_LowRes;       // Compute features in low resolution - considered only if OperatingMode equals to VIT_ALL_MODULE_DISABLE
@@ -219,7 +196,7 @@ typedef struct
     const char                   *pLanguage;
     PL_BOOL                      WW_VoiceCmds_Strings;        // Inform whether the model is integrating WakeWord and Commands strings
     PL_UINT16                    NbOfWakeWords;
-    const char                   *pWakeWord;
+    const char                   *pWakeWord_List;
     PL_UINT16                    NbOfVoiceCmds;
     const char                   *pVoiceCmds_List;
 }
@@ -230,8 +207,7 @@ typedef struct
 {
     PL_UINT32                     VIT_LIB_Release;
     VIT_OperatingMode_en          VIT_Features_Supported;            // List of features supported by VIT
-    PL_UINT16                     NumberOfChannels_Supported;        // Number of Channels supported by the VIT lib
-    PL_BOOL                       WakeWord_In_Text2Model;
+    PL_UINT16                     NumberOfChannels_Supported;        // Number of Channels supported by the VIT lib 
 } VIT_LibInfo_st;
 
 
@@ -242,9 +218,7 @@ typedef struct
     PL_UINT32                     VIT_LIB_Release;
     VIT_OperatingMode_en          VIT_Features_Supported;            // List of features supported by VIT
     VIT_OperatingMode_en          VIT_Features_Selected;             // List of features enabled
-    PL_UINT16                     NumberOfChannels_Supported;        // Number of Channels supported by the VIT lib
-    PL_UINT16                     NumberOfChannels_Selected;         // Number of Channels selected
-    PL_BOOL                       WakeWord_In_Text2Model;
+    PL_UINT16                     NumberOfChannels_Supported;        // Number of Channels supported by the VIT lib 
     VIT_DeviceId_en               Device_Selected;
     PL_UINT16                     VIT_Sequencer_Slot;
     PL_BOOL                       LPVAD_EventDetected;
@@ -359,7 +333,7 @@ VIT_ReturnStatus_en VIT_GetInstanceHandle(VIT_Handle_t           *phInstance,
 * @pre   phInstance should be valid handle.
 * @pre   pControlParams should be allocated by caller.
 * @post  pControlParams will be filled with the values given in the last successful call to
-*        the VIT_SetControlParameters function.
+*        the VIT_SetControlParameters function. 
 *
 * @return VIT_SUCCESS                  Succeeded
 * @return VIT_INVALID_NULLADDRESS      When phInstance or pControlParams is NULL
@@ -389,16 +363,6 @@ VIT_ReturnStatus_en VIT_GetControlParameters(VIT_Handle_t           phInstance,
 * @return VIT_INVALID_PARAMETER_OUTOFRANGE   When one parameter is not in the right range
 * @return VIT_INVALID_AFE_CONFIG             when AFE configuration is wrong
 *
-* Valid VIT configurations :
-*     VITControlParams.OperatingMode : WakeWord shall be always ENABLE
-*
-*     VITControlParams.OperatingMode vs VITInstParams.NumberOfChannel
-*              - VIT lib integrating AFE :
-*                       - AFE DISABLE : 1 MIC supported
-*                       - AFE ENABLE  : 2 or 3 MICs supported
-*              - VIT lib not integrating AFE :
-*                       - AFE DISABLE : 1 MIC supported
-*                       - AFE ENABLE  : invalid
 */
 VIT_ReturnStatus_en VIT_SetControlParameters(VIT_Handle_t                 phInstance,
                                              const VIT_ControlParams_st   *const pNewParams
@@ -446,7 +410,7 @@ VIT_ReturnStatus_en VIT_ResetInstance(VIT_Handle_t phInstance);
 * @pre phInstance should be valid handle.
 * @pre VIT_SetControlParameters should be called successfully once before
 * the first call to VIT_Process
-* @pre  pVIT_InputBuffers is filled with the input samples to process.
+* @pre  pVIT_InputBuffer is filled with the input samples to process.
 * @pre  pVIT_DetectionResults should be allocated by caller.
 * @post pVIT_DetectionResults will return detection status of VIT.
 *
@@ -455,9 +419,10 @@ VIT_ReturnStatus_en VIT_ResetInstance(VIT_Handle_t phInstance);
 *
 */
 VIT_ReturnStatus_en VIT_Process(  VIT_Handle_t            phInstance,
-                                  VIT_DataIn_st           *pVIT_InputBuffers,
+                                  void                    *pVIT_InputBuffer,
                                   VIT_DetectionStatus_en  *pVIT_DetectionResults
-                                );
+                               );
+
 
 
 /**
@@ -467,7 +432,7 @@ VIT_ReturnStatus_en VIT_Process(  VIT_Handle_t            phInstance,
 * parameter structures.
 *
 * @param phInstance      Instance handle
-* @param pStatusParams  Pointer to the status parameters
+* @param pStatusParams   Pointer to the status parameters
 *
 * @pre   phInstance should be valid handle.
 * @pre   pStatusParams should be allocated by caller.
@@ -491,7 +456,7 @@ VIT_ReturnStatus_en VIT_GetStatusParameters( VIT_Handle_t           phInstance,
 * This function returns the Wakeword Id and string (when present in model) detected by the VIT instance.
 * The function shall be called only when VIT_Process() is informing that a Wakeword is detected (*pVIT_DetectionResults==VIT_WW_DETECTED)
 * The function will return VIT_INVALID_STATE if the calling sequence is not followed (i.e VIT_GetWakeWordFound() to be called after VIT_Process()
-* only if a Wakeword has been detected).
+* only if a Wakeword has been detected). 
 *
 * @param phInstance                   Instance handle
 *
@@ -517,7 +482,7 @@ VIT_ReturnStatus_en VIT_GetWakeWordFound     ( VIT_Handle_t         pVIT_Instanc
 * This function returns the Voice Command Id and string (when present in model) detected by the VIT instance.
 * The function shall be called only when VIT_Process() is informing that a Voice Command is detected (*pVIT_DetectionResults==VIT_VC_DETECTED)
 * The function will return VIT_INVALID_STATE if the calling sequence is not followed (i.e VIT_GetVoiceCommandFound() to be called after VIT_Process()
-* only if a command has been detected).
+* only if a command has been detected). 
 *
 * @param phInstance                   Instance handle
 *
@@ -542,7 +507,7 @@ VIT_ReturnStatus_en VIT_GetVoiceCommandFound ( VIT_Handle_t         pVIT_Instanc
 *
 * This function returns different information of the VIT model regitered within VIT lib (registration done via VIT_SetModel()).
 * The function shall be called only when VIT_SetModel() is informing that the model is correct.
-* The function will return VIT_INVALID_STATE if the calling sequence is not followed (i.e VIT_SetModel() to be called first).
+* The function will return VIT_INVALID_STATE if the calling sequence is not followed (i.e VIT_SetModel() to be called first). 
 *
 * @pre   pModel_Info should be allocated by caller.
 * @post  pModel_Info will be filled with

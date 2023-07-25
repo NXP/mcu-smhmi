@@ -21,6 +21,7 @@ typedef struct _file_name
     fica_img_type_t image_type;
 } file_name_t;
 
+#define MSD_FILE_MINIMUM_SIZE 4096
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
@@ -143,16 +144,28 @@ status_t MSC_VFS_WriteResponse(uint32_t offset, uint32_t size, uint8_t *buffer)
                 {
                     uint8_t fileMaxName = sizeof(((fat_file_t *)0)->name);
                     file                = (fat_file_t *)&buffer[idx - fileMaxName + sizeof(ext) - 1];
+
                     break;
                 }
             }
 
             if (file->size != 0)
             {
-                memcpy(fileName, file->name, 11);
-                configPRINTF(("[Write Response] File Attributes: Name - %s, Size - %d\r\n", fileName, file->size));
-                s_fileLength = file->size;
-                fileFound    = true;
+                if (file->size < MSD_FILE_MINIMUM_SIZE)
+                {
+                    configPRINTF(("[Error] File size %d B is too small for minimal admitted %d B\r\n", file->size,
+                                  MSD_FILE_MINIMUM_SIZE));
+
+                    s_transferState = TRANSFER_ERROR;
+                    error           = kStatus_Fail;
+                }
+                else
+                {
+                    memcpy(fileName, file->name, 11);
+                    configPRINTF(("[Write Response] File Attributes: Name - %s, Size - %d\r\n", fileName, file->size));
+                    s_fileLength = file->size;
+                    fileFound    = true;
+                }
             }
         }
         else
@@ -261,7 +274,7 @@ status_t MSC_VFS_WriteResponse(uint32_t offset, uint32_t size, uint8_t *buffer)
 
         if ((s_fileLength > 0) && (s_dataWritten >= s_fileLength))
         {
-            s_transferState = TRANSFER_FINAL;
+            s_transferState = TRANSFER_PENDING;
             // Wake up the application task to finalize transfer
             vTaskResume(*s_usbAppTaskHandle);
         }

@@ -31,8 +31,22 @@
 #include "hal_sln_coffeedb.h"
 #include "smart_tlhmi_event_descriptor.h"
 
-// TODO: temporary fake the IR frame as the real ir camera is not up
-#include "hal_vision_algo_ir_480_640_frame.h"
+/* configurable parameters */
+#ifndef OASIS_COFFEEMACHINE_AUTO_START
+#define OASIS_COFFEEMACHINE_AUTO_START 0
+#endif
+
+#ifndef OASIS_COFFEEMACHINE_RESULT_EVENT_INFO
+#define OASIS_COFFEEMACHINE_RESULT_EVENT_INFO kEventInfo_Remote
+#endif
+
+#ifndef OASIS_COFFEEMACHINE_REQUESTFRAME_EVENT_INFO
+#define OASIS_COFFEEMACHINE_REQUESTFRAME_EVENT_INFO kEventInfo_Remote
+#endif
+
+#ifndef OASIS_COFFEEMACHINE_DEBUG_OPTION
+#define OASIS_COFFEEMACHINE_DEBUG_OPTION false
+#endif
 
 /*******************************************************************************
  * Defines
@@ -71,9 +85,7 @@ static const coffeedb_ops_t *s_pCoffeedbOps = NULL;
 static uint8_t *s_pFaceFeature              = NULL;
 static uint16_t s_faceId                    = -1;
 static uint16_t s_blockingList              = 0;
-static unsigned int s_debugOption           = false;
-/*dtc buffer for inference engine optimization*/
-FWKDATA static uint8_t s_DTCOPBuf[DTC_OPTIMIZE_BUFFER_SIZE];
+static unsigned int s_debugOption           = OASIS_COFFEEMACHINE_DEBUG_OPTION;
 
 #if OASIS_STATIC_MEM_BUFFER
 __attribute__((section(".bss.$SRAM_OCRAM_CACHED"), aligned(64))) uint8_t g_OasisMemPool[OASIS_STATIC_MEM_POOL];
@@ -168,8 +180,11 @@ static inline void _oasis_dev_response(event_base_t eventBase,
 static void _oasis_dev_requestFrame(const vision_algo_dev_t *dev)
 {
     /* Build Valgo event */
-    valgo_event_t valgo_event = {
-        .eventId = kVAlgoEvent_RequestFrame, .eventInfo = kEventInfo_Remote, .data = NULL, .size = 0, .copy = 0};
+    valgo_event_t valgo_event = {.eventId   = kVAlgoEvent_RequestFrame,
+                                 .eventInfo = OASIS_COFFEEMACHINE_REQUESTFRAME_EVENT_INFO,
+                                 .data      = NULL,
+                                 .size      = 0,
+                                 .copy      = 0};
 
     if ((dev != NULL) && (dev->cap.callback != NULL))
     {
@@ -183,7 +198,7 @@ static void _oasis_dev_notifyResult(const vision_algo_dev_t *dev, vision_algo_re
     static vision_algo_result_t oldResults = {0};
     /* Build Valgo event */
     valgo_event_t valgo_event = {.eventId   = kVAlgoEvent_VisionResultUpdate,
-                                 .eventInfo = kEventInfo_Remote,
+                                 .eventInfo = OASIS_COFFEEMACHINE_RESULT_EVENT_INFO,
                                  .data      = result,
                                  .size      = sizeof(vision_algo_result_t),
                                  .copy      = 1};
@@ -305,6 +320,17 @@ static void _oasis_evtCb(ImageFrame_t *frames[], OASISLTEvt_t evt, OASISLTCbPara
                     if (s_debugOption)
                     {
                         OASIS_LOGD("[OASIS] Quality:Face Brightness unfit[%d]", para->reserved[12]);
+                    }
+                }
+                break;
+
+                case OASIS_QUALITY_RESULT_PARTIAL_BRIGHTNESS_FAIL:
+                {
+                    result->qualityCheck = kOasisLiteQualityCheck_Brightness;
+                    if (s_debugOption)
+                    {
+                        OASIS_LOGD("[OASIS] Quality:Face Partial Brightness unfit lrsim[%d], uddiff[%d]",
+                                   para->reserved[18], para->reserved[19]);
                     }
                 }
                 break;
@@ -772,7 +798,7 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Init(vision_algo_
     memset(&dev->cap, 0, sizeof(dev->cap));
     dev->cap.callback = callback;
 
-    dev->data.autoStart                              = 0;
+    dev->data.autoStart                              = OASIS_COFFEEMACHINE_AUTO_START;
     dev->data.frames[kVAlgoFrameID_RGB].height       = OASIS_RGB_FRAME_HEIGHT;
     dev->data.frames[kVAlgoFrameID_RGB].width        = OASIS_RGB_FRAME_WIDTH;
     dev->data.frames[kVAlgoFrameID_RGB].pitch        = OASIS_RGB_FRAME_WIDTH * OASIS_RGB_FRAME_BYTE_PER_PIXEL;
@@ -808,7 +834,7 @@ static hal_valgo_status_t HAL_VisionAlgoDev_OasisCoffeeMachine_Init(vision_algo_
     s_OasisCoffeeMachine.config.size                        = 0;
     s_OasisCoffeeMachine.config.memPool                     = NULL;
     s_OasisCoffeeMachine.config.fastMemSize                 = DTC_OPTIMIZE_BUFFER_SIZE;
-    s_OasisCoffeeMachine.config.fastMemBuf                  = (char *)s_DTCOPBuf;
+    s_OasisCoffeeMachine.config.fastMemBuf                  = (char *)g_DTCOPBuf;
     s_OasisCoffeeMachine.config.runtimePara.brightnessTH[0] = 50;
     s_OasisCoffeeMachine.config.runtimePara.brightnessTH[1] = 180;
     s_OasisCoffeeMachine.config.runtimePara.frontTH         = 0.5;

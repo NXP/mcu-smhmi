@@ -23,6 +23,11 @@
 #define TARGET_BOARD BOARD_SMART_TLHMI
 
 /*
+ *  AQT test: set to 1 to run in AQT test mode.
+ */
+#define AQT_TEST 0
+
+/*
  * Enablement of the HAL devices
  */
 //#define ENABLE_VISIONALGO_DEV_Benchmark
@@ -53,12 +58,12 @@
 
 /* AMP_LOOPBACK_DISABLED = 0 - AFE performs AEC based on speaker's playback stream.
  * AMP_LOOPBACK_DISABLED = 1 - AFE does not perform AEC. */
-#define AMP_LOOPBACK_DISABLED 1
+#define AMP_LOOPBACK_DISABLED   1
 
 /* Configurations of SELF_WAKE_UP_PROTECTION mechanism. */
-#define SELF_WAKE_UP_DISABLED (0)
-#define SELF_WAKE_UP_WW       (1 << 0)
-#define SELF_WAKE_UP_VC       (1 << 1)
+#define SELF_WAKE_UP_DISABLED   (0)
+#define SELF_WAKE_UP_WW         (1 << 0)
+#define SELF_WAKE_UP_VC         (1 << 1)
 
 /* Define SELF_WAKE_UP_PROTECTION in order to enable self wake up protection mechanism.
  * This mechanism will search for "fake" wake words or/and voice commands in amplifier's playback stream.
@@ -68,11 +73,14 @@
  * #define SELF_WAKE_UP_PROTECTION (SELF_WAKE_UP_DISABLED)             - mechanism disabled.
  * #define SELF_WAKE_UP_PROTECTION (SELF_WAKE_UP_WW)                   - searches for "fake" wake words.
  * #define SELF_WAKE_UP_PROTECTION (SELF_WAKE_UP_VC)                   - searches for "fake" voice commands.
- * #define SELF_WAKE_UP_PROTECTION (SELF_WAKE_UP_WW | SELF_WAKE_UP_VC) - searches for "fake" wake words and voice commands. */
+ * #define SELF_WAKE_UP_PROTECTION (SELF_WAKE_UP_WW | SELF_WAKE_UP_VC) - searches for "fake" wake words and voice
+ * commands. */
 #define SELF_WAKE_UP_PROTECTION SELF_WAKE_UP_DISABLED
 
 /* ENABLE_OUTPUT_DEV_AudioDump: 1 - AFE (mics+amp+clean), 2 - ASR (clean) */
-//#define ENABLE_OUTPUT_DEV_AudioDump 1
+#if AQT_TEST
+#define ENABLE_OUTPUT_DEV_AudioDump 1
+#endif /* AQT_TEST */
 
 #elif defined(ENABLE_VIT_ASR)
 /* "Hey NXP" and its corresponding translations in other languages may take up to 3s to be spoken. */
@@ -80,14 +88,16 @@
 
 /* VIT does not support loopback.
  * AMP_LOOPBACK_DISABLED = 1 - AFE does not perform AEC. */
-#define AMP_LOOPBACK_DISABLED 1
+#define AMP_LOOPBACK_DISABLED   1
 
 /* VIT does not support Self Wake Up Protection mechanism.
  * SELF_WAKE_UP_PROTECTION = 0 - mechanism disabled. */
 #define SELF_WAKE_UP_PROTECTION 0
 
 /* ENABLE_OUTPUT_DEV_AudioDump: 1 - AFE (mics+amp+clean) */
-//#define ENABLE_OUTPUT_DEV_AudioDump 1
+#if AQT_TEST
+#define ENABLE_OUTPUT_DEV_AudioDump 1
+#endif /* AQT_TEST */
 
 #else
 #error "ENABLE_DSMT_ASR or ENABLE_VIT_ASR must be enabled."

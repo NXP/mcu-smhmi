@@ -79,18 +79,28 @@ void BOARD_InitBootPins(void) {
     BOARD_InitLedPins();
     BOARD_InitRGBLedPins();
     BOARD_InitDebugConsolePins();
+    BOARD_InitMipiPanelPins();
 }
 
 /*
- * TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
+* TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 BOARD_InitMipiPanelPins:
 - options: {callFromInitBoot: 'false', coreID: cm7, enableClock: 'true'}
 - pin_list:
-  - {pin_num: M2, peripheral: GPIO2, signal: 'gpio_mux_io, 22', pin_signal: GPIO_EMC_B2_12, identifier: DISP_RST, direction: OUTPUT, gpio_init_state: no_init, pull_down_pull_up_config: No_Pull}
-  - {pin_num: N13, peripheral: GPIO9, signal: 'gpio_io, 05', pin_signal: GPIO_AD_06, identifier: DISP_BL, direction: OUTPUT, gpio_init_state: no_init}
-  - {pin_num: A4, peripheral: GPIO11, signal: 'gpio_io, 16', pin_signal: GPIO_DISP_B2_15, direction: OUTPUT, gpio_init_state: no_init}
- * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
- */
+ - {pin_num: A4, peripheral: GPIO11, signal: 'gpio_io, 16', pin_signal: GPIO_DISP_B2_15, software_input_on: Disable}
+ - {pin_num: N8, peripheral: LPI2C5, signal: SCL, pin_signal: GPIO_LPSR_05, software_input_on: Enable,
+pull_up_down_config: Pull_Down, pull_keeper_select: Keeper, open_drain: Enable, drive_strength: Normal, slew_rate: Slow}
+ - {pin_num: N7, peripheral: LPI2C5, signal: SDA, pin_signal: GPIO_LPSR_04, software_input_on: Enable,
+pull_up_down_config: Pull_Down, pull_keeper_select: Keeper, open_drain: Enable, drive_strength: Normal, slew_rate: Slow}
+ - {pin_num: N12, peripheral: GPIO8, signal: 'gpio_io, 31', pin_signal: GPIO_AD_00, software_input_on: Enable,
+pull_up_down_config: Pull_Down, pull_keeper_select: Keeper, open_drain: Disable, drive_strength: Normal, slew_rate:
+Slow}
+ - {pin_num: R14, peripheral: GPIO9, signal: 'gpio_io, 00', pin_signal: GPIO_AD_01, pull_up_down_config: Pull_Down,
+pull_keeper_select: Keeper, open_drain: Disable, drive_strength: Normal, slew_rate: Slow}
+ - {pin_num: R13, peripheral: GPIO9, signal: 'gpio_io, 01', pin_signal: GPIO_AD_02}
+ - {pin_num: K17, peripheral: GPIO9, signal: 'gpio_io, 29', pin_signal: GPIO_AD_30}
+* BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
+*/
 
 /* FUNCTION ************************************************************************************************************
  *
@@ -99,55 +109,41 @@ BOARD_InitMipiPanelPins:
  *
  * END ****************************************************************************************************************/
 void BOARD_InitMipiPanelPins(void) {
-  CLOCK_EnableClock(kCLOCK_Iomuxc);           /* LPCG on: LPCG is ON. */
 
-  /* GPIO configuration of DISP_RST on GPIO_EMC_B2_12 (pin M2) */
-  gpio_pin_config_t DISP_RST_config = {
-      .direction = kGPIO_DigitalOutput,
-      .outputLogic = 0U,
-      .interruptMode = kGPIO_NoIntmode
-  };
-  /* Initialize GPIO functionality on GPIO_EMC_B2_12 (pin M2) */
-  GPIO_PinInit(GPIO2, 22U, &DISP_RST_config);
+    CLOCK_EnableClock(kCLOCK_Iomuxc);      /* LPCG on: LPCG is ON. */
+    CLOCK_EnableClock(kCLOCK_Iomuxc_Lpsr); /* LPCG on: LPCG is ON. */
+    /*
+     * MIPI Panel LCD Pins.
+     */
+    IOMUXC_SetPinMux(IOMUXC_GPIO_EMC_B2_12_GPIO8_IO22, 0);   // PANEL_RST
+    IOMUXC_SetPinMux(IOMUXC_GPIO_DISP_B2_15_GPIO11_IO16, 0); // PANEL_POWER
+    IOMUXC_SetPinMux(IOMUXC_GPIO_AD_06_GPIO9_IO05, 0U);      // PANEL_BACKLIGHT
 
-  /* GPIO configuration of DISP_BL on GPIO_AD_06 (pin N13) */
-  gpio_pin_config_t DISP_BL_config = {
-      .direction = kGPIO_DigitalOutput,
-      .outputLogic = 0U,
-      .interruptMode = kGPIO_NoIntmode
-  };
-  /* Initialize GPIO functionality on GPIO_AD_06 (pin N13) */
-  GPIO_PinInit(GPIO9, 5U, &DISP_BL_config);
+    /*
+     * MIPI Panel Touch Pins
+     */
+    IOMUXC_SetPinMux(IOMUXC_GPIO_EMC_B2_11_GPIO8_IO21, 0U); // TOUCH_RST
+    IOMUXC_SetPinMux(IOMUXC_GPIO_EMC_B2_10_GPIO8_IO20, 0U); // TOUCH_INT
 
-  /* GPIO configuration of DISP_POWER on GPIO_DISP_B2_15 (pin A4) */
-  gpio_pin_config_t DISP_POWER_config = {
-      .direction = kGPIO_DigitalOutput,
-      .outputLogic = 0U,
-      .interruptMode = kGPIO_NoIntmode
-  };
-  /* Initialize GPIO functionality on GPIO_DISP_B2_15 (pin A4) */
-  GPIO_PinInit(GPIO11, 16U, &DISP_POWER_config);
+    IOMUXC_SetPinMux(IOMUXC_GPIO_LPSR_04_LPI2C5_SDA, 1U); // TOUCH_I2C
+    IOMUXC_SetPinMux(IOMUXC_GPIO_LPSR_05_LPI2C5_SCL, 1U); // TOUCH_I2C
 
-  IOMUXC_SetPinMux(
-      IOMUXC_GPIO_AD_06_GPIO9_IO05,           /* GPIO_AD_06 is configured as GPIO9_IO05 */
-      0U);                                    /* Software Input On Field: Input Path is determined by functionality */
-  IOMUXC_SetPinMux(
-      IOMUXC_GPIO_DISP_B2_15_GPIO11_IO16,     /* GPIO_DISP_B2_15 is configured as GPIO11_IO16 */
-      0U);                                    /* Software Input On Field: Input Path is determined by functionality */
-  IOMUXC_SetPinMux(
-      IOMUXC_GPIO_EMC_B2_12_GPIO_MUX2_IO22,   /* GPIO_EMC_B2_12 is configured as GPIO_MUX2_IO22 */
-      0U);                                    /* Software Input On Field: Input Path is determined by functionality */
-  IOMUXC_GPR->GPR41 = ((IOMUXC_GPR->GPR41 &
-    (~(IOMUXC_GPR_GPR41_GPIO_MUX2_GPIO_SEL_HIGH_MASK))) /* Mask bits to zero which are setting */
-      | IOMUXC_GPR_GPR41_GPIO_MUX2_GPIO_SEL_HIGH(0x00U) /* GPIO2 and CM7_GPIO2 share same IO MUX function, GPIO_MUX2 selects one GPIO function: 0x00U */
-    );
-  IOMUXC_SetPinConfig(
-      IOMUXC_GPIO_EMC_B2_12_GPIO_MUX2_IO22,   /* GPIO_EMC_B2_12 PAD functional properties : */
-      0x0CU);                                 /* PDRV Field: high drive strength
-                                                 Pull Down Pull Up Field: No Pull
-                                                 Open Drain Field: Disabled
-                                                 Domain write protection: Both cores are allowed
-                                                 Domain write protection lock: Neither of DWP bits is locked */
+    IOMUXC_SetPinConfig(IOMUXC_GPIO_LPSR_04_LPI2C5_SDA, /* GPIO_LPSR_04 PAD functional properties : */
+                        0x2EU);                         /* Slew Rate Field: Slow Slew Rate
+                                                           Drive Strength Field: normal driver
+                                                           Pull / Keep Select Field: Pull Disable
+                                                           Pull Up / Down Config. Field: Weak pull up
+                                                           Open Drain LPSR Field: Enabled
+                                                           Domain write protection: Both cores are allowed
+                                                           Domain write protection lock: Neither of DWP bits is locked */
+    IOMUXC_SetPinConfig(IOMUXC_GPIO_LPSR_05_LPI2C5_SCL, /* GPIO_LPSR_05 PAD functional properties : */
+                        0x2EU);                         /* Slew Rate Field: Slow Slew Rate
+                                                           Drive Strength Field: normal driver
+                                                           Pull / Keep Select Field: Pull Disable
+                                                           Pull Up / Down Config. Field: Weak pull up
+                                                           Open Drain LPSR Field: Enabled
+                                                           Domain write protection: Both cores are allowed
+                                                           Domain write protection lock: Neither of DWP bits is locked */
 }
 
 

@@ -130,4 +130,10 @@ unsigned int get_model_size(asr_language_t asrLang, asr_inference_t infCMDType)
     return modelSize;
 }
 
+void get_voice_model(uint8_t **modelAddr, uint32_t *modelSize, asr_language_t asrLang, asr_inference_t infCMDType)
+{
+    *modelSize = get_model_size(asrLang, infCMDType);
+    *modelAddr = get_model_address(asrLang, infCMDType);
+}
+
 #endif /* LOCAL_VOICE_MODEL_H_ */

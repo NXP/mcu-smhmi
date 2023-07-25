@@ -14,6 +14,25 @@
 #include "fsl_common.h"
 #include "fica_definition.h"
 
+#define UPDATE_MONITOR_GRANULARITY 2
+
+typedef enum _updateStage
+{
+    UPDATE_INVALID,
+    UPDATE_WAITING,
+    UPDATE_DOWNLOAD,
+    UPDATE_PROCESSING,
+    UPDATE_FINISH
+} updateStage;
+
+/*! @brief Used to receive status update for the update mechanism
+ *
+ * For UPDATE_WAITING stage the status is always 0
+ * For UPDATE_DOWNLOAD and UPDATE_PROCESSING stage the status is percent
+ * For UPDATE_FINISH the status is 0 if success and 1 if failure
+ */
+typedef void (*update_monitor_cb)(updateStage, uint8_t);
+
 /*! @brief module metadata structure */
 typedef struct _mod_meta
 {
@@ -110,6 +129,15 @@ status_t SLN_Update_FinalizeUpdate(fica_img_type_t imgType, uint8_t *imgSig);
  * @return
  */
 status_t SLN_Update_Rollback(void);
+
+/*!
+ * @brief Set the callback for monitor update state
+ * @param update_monitor_cb Callback which will be called to provide status report during update operation.
+ * Set the value to NULL if no feedback needed
+ *
+ * @return the status of the update operation
+ */
+status_t SLN_Update_Init(update_monitor_cb cb);
 
 /**
  * @brief Check if there is an update request pending. This is project/platform related.

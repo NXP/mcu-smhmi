@@ -6,7 +6,7 @@
  * Generated linker script file for MIMXRT1176xxxxx
  * Created from linkscript.ldt by FMCreateLinkLibraries
  * Using Freemarker v2.3.30
- * MCUXpresso IDE v11.5.0 [Build 7232] [2022-01-11] on Jun 7, 2022, 7:01:24 AM
+ * MCUXpresso IDE v11.7.0_ear2 [Build 9148] [2022-11-21] on Dec 20, 2022, 3:56:05 PM
  */
 
 INCLUDE "sln_smart_tlhmi_coffee_machine_cm4_Release_library.ld"
@@ -123,11 +123,10 @@ SECTIONS
         *(.ARM.extab* .gnu.linkonce.armextab.*)
     } > BOARD_SDRAM
 
-    .ARM.exidx : ALIGN(0x20)
+    .ARM.exidx : ALIGN(4)
     {
         __exidx_start = .;
         *(.ARM.exidx* .gnu.linkonce.armexidx.*)
-        . += 24;
         __exidx_end = .;
     } > BOARD_SDRAM
  
@@ -564,7 +563,7 @@ SECTIONS
 
     /* Reserve and place Heap within memory map */
     _HeapSize = 0x1000;
-    .heap :  ALIGN(4)
+    .heap (NOLOAD) :  ALIGN(4)
     {
         _pvHeapStart = .;
         . += _HeapSize;
@@ -574,12 +573,12 @@ SECTIONS
 
      _StackSize = 0x1000;
      /* Reserve space in memory for Stack */
-    .heap2stackfill  :
+    .heap2stackfill (NOLOAD) :
     {
         . += _StackSize;
     } > BOARD_SDRAM
     /* Locate actual Stack in memory map */
-    .stack ORIGIN(BOARD_SDRAM) + LENGTH(BOARD_SDRAM) - _StackSize - 0:  ALIGN(4)
+    .stack ORIGIN(BOARD_SDRAM) + LENGTH(BOARD_SDRAM) - _StackSize - 0 (NOLOAD) :  ALIGN(4)
     {
         _vStackBase = .;
         . = ALIGN(4);

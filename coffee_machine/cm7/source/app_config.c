@@ -23,6 +23,9 @@
 #include "app_config.h"
 #include "smart_tlhmi_event_descriptor.h"
 
+/*dtc buffer for inference engine optimization*/
+AT_NONCACHEABLE_SECTION_ALIGN_DTC(uint8_t g_DTCOPBuf[DTC_OPTIMIZE_BUFFER_SIZE], 4);
+
 // TODO: Update to "real" version number. Below are used for testing
 #define APP_CONFIG_VERSION_MINOR 0x12
 #define APP_CONFIG_VERSION_MAJOR 0x34

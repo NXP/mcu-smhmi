@@ -16,7 +16,7 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-#define ELEVATOR_DB_VERSION  3
+#define ELEVATOR_DB_VERSION  2
 #define ELEVATOR_DB_MAX_SIZE 100
 #define INVALID_ID           0xFFFF
 #define INVALID_FLOOR        0xFFFFFFFF

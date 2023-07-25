@@ -189,7 +189,11 @@ static float s_FaceRecProgress              = 0.0f;
 static TimerHandle_t s_FaceRecProgressTimer = NULL;
 static bool s_FaceRecOSDEnable              = false;
 
-#define SESSION_TIMER_IN_MS      (60000)
+#if AQT_TEST
+#define SESSION_TIMER_IN_MS (15000)
+#else
+#define SESSION_TIMER_IN_MS (60000)
+#endif /* AQT_TEST */
 #define SESSION_UPDATE_INTERVALS (60)
 #define FACE_REC_UPDATE_INTERVAL (SESSION_TIMER_IN_MS / SESSION_UPDATE_INTERVALS)
 
@@ -848,6 +852,8 @@ void UI_Finished_Callback()
 
 void UI_WidgetInteraction_Callback()
 {
+#if AQT_TEST
+#else
     _SessionTimer_Start();
 
     if (s_Recognized == 0)
@@ -856,6 +862,7 @@ void UI_WidgetInteraction_Callback()
         _FaceRecProgressTimer_Start();
         _DrawPreviewUI(g_PreviewMode, 1, s_FaceRecIndicator, 1, s_FaceRecProgress);
     }
+#endif /* AQT_TEST */
 }
 
 void UI_SetLanguage_Callback(language_t language)
@@ -1443,6 +1450,12 @@ static hal_output_status_t HAL_OutputDev_UiCoffeeMachine_InferComplete(const out
         return error;
     }
 
+#if AQT_TEST
+    if (source == kOutputAlgoSource_Voice)
+    {
+        _InferComplete_Voice(dev, inferResult, currentScreenId);
+    }
+#else
     if (source == kOutputAlgoSource_Vision)
     {
         _InferComplete_Vision(dev, inferResult, currentScreenId);
@@ -1451,6 +1464,8 @@ static hal_output_status_t HAL_OutputDev_UiCoffeeMachine_InferComplete(const out
     {
         _InferComplete_Voice(dev, inferResult, currentScreenId);
     }
+#endif /* AQT_TEST */
+
     LVGL_UNLOCK();
 
     return error;

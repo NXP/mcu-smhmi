@@ -44,7 +44,8 @@ extern "C" {
 #define DEFAULT_ACTIVE_LANGUAGE (ASR_ENGLISH)
 #endif /* ENABLE_DSMT_ASR */
 
-#define k_nMaxTime (300)
+// set to 500 from v2.2.16.2
+#define k_nMaxTime (500)
 
 // the response waiting time in ASR session
 #define TIMEOUT_TIME_IN_MS 60000

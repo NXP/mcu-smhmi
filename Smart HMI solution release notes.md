@@ -1,10 +1,24 @@
 # Smart HMI solution release notes
 
-**V1.1.1**
+**V1.1.2**
+
+**Improvements**
+
+1. Upgrade oasis library to v2.2.0 which integrated the fix for the multiple registration issue while the face has partial brightness.
+2. Upgrade the VoiceSeeker to v0.6.0.
+3. Upgrade the VIT to V4.7.7 RFP release.
+4. Upgrade the DSMT coffee machine and elevator Chinese voice model to version 6.
+5. Move flexspi clock to pll2 pfd2 to improve the system performance.
+6. Add the LED blinking during the resource move of the MSD update.
+7. Modify memory map to 7MB of code, 13MB of resources
+8. Add Framework source code
+9. Add minimal UI interface in bootloader for easier MSD updates.
+
+**V1.1.1**a
 
 **HotFix**
 
-1. Fixed backwards incompatibility bug created when upgrading the firmware with an update that contains changes to the face database layout.
+1. Fix database backward compatibility when doing update without a prior mass erase.
 
 **V1.1.0**
 
@@ -13,7 +27,7 @@
 2. New camera support MIPI - GC2145
 3. Increase flash size to 64MB in order to support 2 applications
 4. NXP VIT library for voice recognition capabilities (en/de/cn)
-5. Multilingual wake word and prompt responses (only for Cyberon, DSMT)
+5. Multilingual wake word and prompt responds (only for Cybron, DSMT)
 6. Barge-in feature
 7. Audio Dump feature for offline audio validation
 8. Ivaldi support for mass production flashing

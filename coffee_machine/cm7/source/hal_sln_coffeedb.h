@@ -16,7 +16,7 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-#define COFFEE_DB_VERSION  3
+#define COFFEE_DB_VERSION  2
 #define COFFEE_DB_MAX_SIZE 100
 #define INVALID_ID         0xFFFF
 
