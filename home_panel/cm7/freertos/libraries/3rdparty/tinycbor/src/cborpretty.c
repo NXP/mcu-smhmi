@@ -33,6 +33,7 @@
 #include "compilersupport_p.h"
 #include "utf8_p.h"
 
+#include <sys/types.h>
 #include <inttypes.h>
 #include <string.h>
 
